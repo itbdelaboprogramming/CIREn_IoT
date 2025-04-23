@@ -2,7 +2,7 @@
 #include <pinout/devkitv1.h>
 #include <drivers/temperature/DHTSensor.h>
 #include <drivers/proximity/TCRT5000Sensor.h>
-#include <drivers/ultrasonic/HCSR04Sensor.h>
+#include <drivers/ultrasonic/UltrasonicSensor.h>
 
 /*
   ============================
@@ -52,7 +52,7 @@ float temperature = 0.0;
 float humidity = 0.0;
 
 // Ultrasonic sensor object
-HCSR04Sensor ultrasonicSensor(PIN_GPIO12, PIN_GPIO13);
+UltrasonicSensor ultrasonicSensor(PIN_GPIO12, PIN_GPIO13);
 float distance = 0.0; // Distance in meters
 
 // [4] ========================= SETUP =========================

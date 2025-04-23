@@ -1,12 +1,11 @@
-#ifndef HCSR04_SENSOR_H
-#define HCSR04_SENSOR_H
+#pragma
 
 #include <Arduino.h>
 #include <HCSR04.h>
 
-class HCSR04Sensor {
+class UltrasonicSensor {
   public:
-    HCSR04Sensor(uint8_t trigPin, uint8_t echoPin);
+    UltrasonicSensor(uint8_t trigPin, uint8_t echoPin);
     void begin();
     float getDistanceMeters();  // Returns distance in meters
 
@@ -14,5 +13,3 @@ class HCSR04Sensor {
     uint8_t _trigPin;
     uint8_t _echoPin;
 };
-
-#endif

@@ -1,17 +1,17 @@
-#include "HCSR04Sensor.h"
+#include "UltrasonicSensor.h"
 
-HCSR04Sensor::HCSR04Sensor(uint8_t trigPin, uint8_t echoPin) {
+UltrasonicSensor::UltrasonicSensor(uint8_t trigPin, uint8_t echoPin) {
   _trigPin = trigPin;
   _echoPin = echoPin;
 }
 
-void HCSR04Sensor::begin() {
+void UltrasonicSensor::begin() {
   pinMode(_trigPin, OUTPUT);
   pinMode(_echoPin, INPUT);
   digitalWrite(_trigPin, LOW);
 }
 
-float HCSR04Sensor::getDistanceMeters() {
+float UltrasonicSensor::getDistanceMeters() {
   digitalWrite(_trigPin, LOW);
   delayMicroseconds(2);
   digitalWrite(_trigPin, HIGH);
