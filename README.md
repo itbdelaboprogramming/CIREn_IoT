@@ -36,6 +36,7 @@ The project is organized to support modular sensor integration and maintainabili
 ├── src/                   # Main source code
 │   ├── main.cpp           # Entry point for firmware
 │   └── drivers/           # Modular sensor drivers
+│       ├── canbus/       
 │       ├── encoder/       
 │       ├── proximity/     
 │       ├── temperature/   
