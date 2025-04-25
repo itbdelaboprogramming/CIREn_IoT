@@ -1,5 +1,7 @@
 #include <Arduino.h>
+#include <WiFi.h>
 #include <pinout/devkitv1.h>
+#include <state_machine.h>
 #include <drivers/temperature/DHTSensor.h>
 #include <drivers/proximity/TCRT5000Sensor.h>
 #include <drivers/ultrasonic/UltrasonicSensor.h>
@@ -31,7 +33,15 @@ void update_temperature();
 void update_proximity();
 void update_ultrasonic();
 
+void state_request_id();
+void state_configuration();
+void state_main();
+
 // [3] ============== GLOBAL VARIABLES ==============
+
+// State machine object
+StateMachine programState;
+
 // Millis timestamp holders
 unsigned long millisPrint = 0;
 unsigned long millisLed = 0;
@@ -58,25 +68,33 @@ float distance = 0.0; // Distance in meters
 // [4] ========================= SETUP =========================
 void setup() {
   hardware_init();
+
+  programState = StateMachine::STATE_REQUEST_ID; 
 }
 
 // [5] ========================= LOOP =========================
 void loop() {
   
-  // Print message every PRINT_INTERVAL ms
-  if (millis() - millisPrint >= PRINT_INTERVAL) {
-    millisPrint = millis();
-    Serial.println("Hello, I'm ESP32 Devkit V1 built using Platform.io");
-  }
+  switch (programState) {
+    case StateMachine::STATE_REQUEST_ID:
+      state_request_id();
+      break;
+    case StateMachine::STATE_CONFIGURATION:
+      state_configuration();
+      break;
+    case StateMachine::STATE_MAIN:
+      state_main();
+      break;
+  };
+
   
   led_blink(); 
-  update_temperature();
-  update_proximity();
-  update_ultrasonic();
 
 }
 
 // [6] ============== FUNCTION DEFINITIONS ==============
+
+
 
 // Initialize hardware
 void hardware_init() {
