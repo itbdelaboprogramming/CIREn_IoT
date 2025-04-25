@@ -115,21 +115,6 @@ void state_configuration() {
 
 void state_main() {
   // Placeholder for state_main logic
-  
-  // Print sensor data every PRINT_INTERVAL milliseconds
-  if (millis() - millisPrint >= PRINT_INTERVAL) {
-    millisPrint = millis();
-    Serial.print("Temperature: ");
-    Serial.print(temperature);
-    Serial.print(" °C, Humidity: ");
-    Serial.print(humidity);
-    Serial.print(" %, Proximity: ");
-    Serial.print(proximityState ? "Close" : "Far");
-    Serial.print(", Distance: ");
-    Serial.print(distance);
-    Serial.println(" m");
-  }
-
   update_temperature();
   update_proximity();
   update_ultrasonic();
