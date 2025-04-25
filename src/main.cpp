@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <pinout/devkitv1.h>
 #include <state_machine.h>
+#include <logger.h>
 #include <drivers/temperature/DHTSensor.h>
 #include <drivers/proximity/TCRT5000Sensor.h>
 #include <drivers/ultrasonic/UltrasonicSensor.h>
@@ -42,6 +43,11 @@ void state_main();
 // State machine object
 StateMachine programState;
 
+// Logger TAG
+const char *TAG_SETUP = "SETUP"; // Logger TAG
+const char *TAG_MAIN = "MAIN_STATE";
+const char *TAG_CAN = "CAN_STATE";
+
 // Millis timestamp holders
 unsigned long millisPrint = 0;
 unsigned long millisLed = 0;
@@ -67,7 +73,10 @@ float distance = 0.0; // Distance in meters
 
 // [4] ========================= SETUP =========================
 void setup() {
+
+  LOGI(TAG_SETUP, "Starting setup...");
   hardware_init();
+  LOGI(TAG_SETUP, "Hardware initialized.");
 
   programState = StateMachine::STATE_REQUEST_ID; 
 }
@@ -77,24 +86,54 @@ void loop() {
   
   switch (programState) {
     case StateMachine::STATE_REQUEST_ID:
+      LOGI(TAG_MAIN, "State: Request ID");
       state_request_id();
       break;
     case StateMachine::STATE_CONFIGURATION:
+      LOGI(TAG_MAIN, "State: Configuration");
       state_configuration();
       break;
     case StateMachine::STATE_MAIN:
+      LOGI(TAG_MAIN, "State: Main");
       state_main();
       break;
   };
 
-  
   led_blink(); 
 
 }
 
 // [6] ============== FUNCTION DEFINITIONS ==============
 
+void state_request_id() {
+  programState = StateMachine::STATE_CONFIGURATION; // Transition to next state
+}
 
+void state_configuration() {
+  programState = StateMachine::STATE_MAIN; // Transition to next state
+}
+
+void state_main() {
+  // Placeholder for state_main logic
+  
+  // Print sensor data every PRINT_INTERVAL milliseconds
+  if (millis() - millisPrint >= PRINT_INTERVAL) {
+    millisPrint = millis();
+    Serial.print("Temperature: ");
+    Serial.print(temperature);
+    Serial.print(" °C, Humidity: ");
+    Serial.print(humidity);
+    Serial.print(" %, Proximity: ");
+    Serial.print(proximityState ? "Close" : "Far");
+    Serial.print(", Distance: ");
+    Serial.print(distance);
+    Serial.println(" m");
+  }
+
+  update_temperature();
+  update_proximity();
+  update_ultrasonic();
+}
 
 // Initialize hardware
 void hardware_init() {
