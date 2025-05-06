@@ -82,7 +82,7 @@
         spi_device_handle_t& spiHandle;
         MCP2515& mcp2515;
     
-        uint16_t calculateCrc(uint8_t* data, int length);
+        uint32_t calculateCrc(uint8_t* data, int length);
         void configureFilter();
         static void rxCallback(int packetSize);
     };
