@@ -119,6 +119,25 @@ void loop() {
 // [6] ============== FUNCTION DEFINITIONS ==============
 
 void state_request_id() {
+  uint8_t macAddress[6];
+
+  ret = esp_wifi_get_mac(WIFI_IF_STA, macAddress);
+  if (ret != ESP_OK) {
+    LOGE(TAG_CAN, "Error getting MAC address: %s", esp_err_to_name(ret));
+    return;
+  } else {
+    LOGI(TAG_CAN, "MAC address: %02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
+  }
+
+  ret = canbus.requestId(macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
+  if (ret != ESP_OK) {
+    LOGE(TAG_CAN, "Error requesting ID: %s", esp_err_to_name(ret));
+    return;
+  } else {
+    LOGI(TAG_CAN, "ID request successful.");
+    LOGI(TAG_CAN, "Device ID: %d", canbus.getRxDeviceId());
+  }
+
   programState = StateMachine::STATE_CONFIGURATION; // Transition to next state
 }
 

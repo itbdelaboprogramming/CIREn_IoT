@@ -87,12 +87,10 @@ int Canbus::requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4
     this->txMailbox[5] = this->macAddress[5];
 
     // Set Filter for the response message
-    mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFFFFFF); // Set filter to accept the response message
-    mcp2515.setFilter(MCP2515::RXF0, true, (crc << 3 | 5) ); // Set filter to accept all messages
+    mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFFFFFF); 
+    mcp2515.setFilter(MCP2515::RXF0, true, (crc << 3 | 5) ); 
 
-    if(this->send() != ESP_OK) {
-        return ESP_FAIL; // Error sending request ID message
-    }
+    this->send();
     
     delay(10);
 
