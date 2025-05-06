@@ -1,6 +1,8 @@
 #include <Arduino.h>
+
 #include <WiFi.h>
 #include <esp_wifi.h>
+
 #include <pinout/devkitc.h>
 #include <state_machine.h>
 #include <logger.h>
@@ -103,12 +105,10 @@ void loop() {
       break;
     case StateMachine::STATE_CONFIGURATION:
       LOGI(TAG_MAIN, "State: Configuration");
-      send_heartbeat();
       state_configuration();
       break;
     case StateMachine::STATE_MAIN:
       LOGI(TAG_MAIN, "State: Main");
-      send_heartbeat();
       state_main();
       break;
   };
@@ -124,7 +124,6 @@ void state_request_id() {
   ret = esp_wifi_get_mac(WIFI_IF_STA, macAddress);
   if (ret != ESP_OK) {
     LOGE(TAG_CAN, "Error getting MAC address: %s", esp_err_to_name(ret));
-    return;
   } else {
     LOGI(TAG_CAN, "MAC address: %02X:%02X:%02X:%02X:%02X:%02X", macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
   }
@@ -142,10 +141,12 @@ void state_request_id() {
 }
 
 void state_configuration() {
+  send_heartbeat();
   programState = StateMachine::STATE_MAIN; // Transition to next state
 }
 
 void state_main() {
+  send_heartbeat();
   led_blink(); 
 }
 
