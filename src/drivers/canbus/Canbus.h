@@ -10,93 +10,79 @@
 
  #pragma once
 
- #include "CAN.h"
- 
- class Canbus{
-     
- public:
+#include <Arduino.h>
+#include "mcp2515.h"
+#include "../spi_api/ESP32_SPI_API.h"
+#include <SPI.h>
+#include <logger.h>
 
-     Canbus();
- 
-     /**
-      * @brief Initializes the CAN peripheral.
-      * 
-      * This method sets up the CAN hardware and configures the necessary filters and interrupts.
-      */
-     void init();
- 
-     /**
-      * @brief Sends a CAN message.
-      * @return int Returns 0 on success, or a negative value on failure.
-      */
-     int send();
- 
-     /**
-      * @brief Sets the device ID for CAN messages.
-      * @param deviceId The device ID to be set.
-      */
-     void setDeviceId(uint16_t deviceId);
- 
-     /**
-      * @brief Sets the standard ID for CAN messages.
-      * @param deviceId The device ID to be set.
-      * @param commandId The command ID to be set.
-      */
-     void setStandardId(uint16_t deviceId, uint16_t commandId);
- 
-     /**
-      * @brief Filters incoming CAN messages by device ID.
-      * @param deviceId The device ID to filter by.
-      */
-     void filterByIdDevice(uint16_t deviceId);
- 
-     /**
-      * @brief Filters incoming CAN messages by command ID.
-      * @param commandId The command ID to filter by.
-      */
-     void filterByIdCommand(uint16_t commandId);
- 
-     /**
-      * @brief Filters incoming CAN messages by both device ID and command ID.
-      * @param deviceId The device ID to filter by.
-      * @param commandId The command ID to filter by.
-      */
-     void filterById(uint16_t deviceId, uint16_t commandId);
- 
-     /**
-      * @brief Retrieves the device ID from the received CAN message.
-      * @return int The device ID of the received message.
-      */
-     int getRxDeviceId();
- 
-     /**
-      * @brief Retrieves the command ID from the received CAN message.
-      * @return int The command ID of the received message.
-      */
-     int getRxCommandId();
- 
- 
-     /**
-      * @brief Retrieves the standard ID from the received CAN message header.
-      * @return int The standard ID of the received message.
-      */
-     int getRxheaderStdId();
- 
-     /**
-      * @brief Get the Message in 8-bytes of uint8_t char
-      * @param data Pointer to store the raw 8-byte data
-      */
-     void getMessageRaw(uint8_t* data);
- 
- private:
- 
-     /**
-      * @brief Configures the CAN filter based on the current device and command IDs.
-      */
-     void configureFilter();
- 
-     /**
-      * @brief Handles the received CAN message.
-      */
-     void handleReceivedMessage();
- };
+
+
+
+ struct CANHeader {
+    uint16_t standardId = 0;
+    uint32_t extendedId = 0;
+    bool isExtended = false;
+    uint8_t dlc = 8;
+    bool rtr = false;
+};
+
+
+/**
+ * This object implementation done with the assumption of 
+ * only one SPI device on the bus
+**/
+
+ class Canbus {
+    public:
+        Canbus(int SCK_PIN,int MOSI_PIN,int MISO_PIN,int CS_PIN,int INT_PIN, spi_device_handle_t& spiHandle, MCP2515& mcp2515)
+        : SCK_PIN(SCK_PIN), MOSI_PIN(MOSI_PIN), MISO_PIN(MISO_PIN), CS_PIN(CS_PIN), INT_PIN(INT_PIN), spiHandle(spiHandle), mcp2515(mcp2515) {
+            this->baudRate = 500000; // Default baud rate
+        }
+        int init();        
+        int send();
+    
+        void setStandardId(uint16_t deviceId, uint16_t SensorId);
+        void setExtendedId(uint16_t deviceId, uint16_t SensorId);
+        void setDeviceId(uint16_t deviceId);
+
+        int requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4, uint8_t c5);
+    
+        void filterMessageByDeviceId(uint16_t deviceId);
+        void filterMessageBySensorId(uint16_t SensorId);
+        void filterMessageById(uint16_t id);
+        void filterMessageForIdRequest(uint8_t* macAddress);
+        
+        void setMessageheartbeat();
+    
+        int getRxDeviceId();
+        // int getRxSensorId();
+        // int getRxheaderStdId();
+    
+        // void getMessageRaw(uint8_t* data);
+        // void rxCallback(int packetSize);
+    
+    private:
+        int rxPin;
+        int txPin;
+        int baudRate;
+
+        int SCK_PIN, MOSI_PIN, MISO_PIN, CS_PIN, INT_PIN;
+
+        uint8_t macAddress[6];
+    
+        uint8_t rxMailbox[8]; 
+        uint8_t txMailbox[8];
+    
+        uint16_t deviceId;
+    
+        CANHeader txHeader;
+        CANHeader rxHeader;
+
+        spi_device_handle_t& spiHandle;
+        MCP2515& mcp2515;
+    
+        uint16_t calculateCrc(uint8_t* data, int length);
+        void configureFilter();
+        static void rxCallback(int packetSize);
+    };

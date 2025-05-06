@@ -28,13 +28,14 @@
 const unsigned int PRINT_INTERVAL = 1000;
 const unsigned int BLINK_INTERVAL = 500;
 const unsigned int DISPLAY_INTERVAL = 2000;
-const unsigned int CAN_INTERVAL = 100;
+const unsigned int CAN_HEARTBEAT = 100;
 
 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
 void led_blink();
 
+void send_heartbeat();
 void state_configuration();
 void state_main();
 void state_request_id();
@@ -47,6 +48,7 @@ ESP_SSD1306 display(-1); // I2C pins for ESP32 DevKitC
 
 spi_device_handle_t spiHandle;
 MCP2515 mcp2515(&spiHandle); 
+Canbus canbus(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, SPI_CS_PIN, 0, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
 
 esp_err_t ret;
 
@@ -62,7 +64,7 @@ unsigned long millisCAN = 0;
 
 // Onboard LED state (HIGH = ON, LOW = OFF)
 bool ledState = LOW;
-
+bool configState = false;
 
 // [4] ========================= SETUP =========================
 void setup() {
@@ -71,22 +73,22 @@ void setup() {
   hardware_init();
   LOGI(TAG_SETUP, "Hardware initialized.");
 
-
-  ret = fInitializeSPI_Channel(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, VSPI_HOST, true);
-  if (ret != ESP_OK) {
-    LOGE(TAG_SETUP, "Error initializing SPI channel: %s", esp_err_to_name(ret));
-    return;
-  }
+  canbus.init();
+  // ret = fInitializeSPI_Channel(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, VSPI_HOST, true);
+  // if (ret != ESP_OK) {
+  //   LOGE(TAG_SETUP, "Error initializing SPI channel: %s", esp_err_to_name(ret));
+  //   return;
+  // }
   
-  ret = fInitializeSPI_Devices(VSPI_HOST, spiHandle, SPI_CS_PIN);
-  if (ret != ESP_OK) {
-    LOGE(TAG_SETUP, "Error initializing SPI device: %s", esp_err_to_name(ret));
-    return;
-  }
+  // ret = fInitializeSPI_Devices(VSPI_HOST, spiHandle, SPI_CS_PIN);
+  // if (ret != ESP_OK) {
+  //   LOGE(TAG_SETUP, "Error initializing SPI device: %s", esp_err_to_name(ret));
+  //   return;
+  // }
 
-  mcp2515.reset();
-  mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
-  mcp2515.setNormalMode();
+  // mcp2515.reset();
+  // mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
+  // mcp2515.setNormalMode();
 
   programState = StateMachine::STATE_REQUEST_ID; 
 }
@@ -101,25 +103,12 @@ void loop() {
       break;
     case StateMachine::STATE_CONFIGURATION:
       LOGI(TAG_MAIN, "State: Configuration");
+      send_heartbeat();
       state_configuration();
       break;
     case StateMachine::STATE_MAIN:
       LOGI(TAG_MAIN, "State: Main");
-        // Request ID from CAN bus    
-      struct can_frame frame;
-      frame.can_id = 0x001;
-      frame.can_dlc = 4;
-      frame.data[0] = 0x01; // Request ID command
-      frame.data[1] = 0x02; // Request ID command
-      frame.data[2] = 0x03; // Request ID command
-      frame.data[3] = 0x04; // Request ID command
-
-      ret = mcp2515.sendMessage(&frame);
-      if (ret != ESP_OK) {
-        LOGE(TAG_MAIN, "Error sending CAN message: %s", esp_err_to_name(ret));
-      } else {
-        LOGI(TAG_MAIN, "CAN message sent successfully.");
-      }
+      send_heartbeat();
       state_main();
       break;
   };
@@ -130,18 +119,6 @@ void loop() {
 // [6] ============== FUNCTION DEFINITIONS ==============
 
 void state_request_id() {
-
-  // Request ID from CAN bus    
-  struct can_frame frame;
-  frame.can_id = 0x001;
-  frame.can_dlc = 4;
-  frame.data[0] = 0x01; // Request ID command
-  frame.data[1] = 0x02; // Request ID command
-  frame.data[2] = 0x03; // Request ID command
-  frame.data[3] = 0x04; // Request ID command
-
-  mcp2515.sendMessage(&frame);
-
   programState = StateMachine::STATE_CONFIGURATION; // Transition to next state
 }
 
@@ -151,6 +128,14 @@ void state_configuration() {
 
 void state_main() {
   led_blink(); 
+}
+
+void send_heartbeat() {
+  if(millis() - millisCAN >= CAN_HEARTBEAT) {
+    millisCAN = millis();
+    canbus.setMessageheartbeat(); 
+    canbus.send(); 
+  }
 }
 
 // Initialize hardware
