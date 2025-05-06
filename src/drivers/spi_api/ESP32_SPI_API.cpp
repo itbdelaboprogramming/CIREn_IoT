@@ -16,27 +16,29 @@ int8_t GetHighBits()
   return high;
 }
 ////////////////////////////////////////
-int fInitializeSPI_Channel( int spiCLK, int spiMOSI, int spiMISO, spi_host_device_t SPI_Host, bool EnableDMA)
+esp_err_t fInitializeSPI_Channel( int spiCLK, int spiMOSI, int spiMISO, spi_host_device_t SPI_Host, bool EnableDMA)
 {
-  esp_err_t intError;
+  esp_err_t ret;
   spi_bus_config_t bus_config = { };
   bus_config.sclk_io_num = spiCLK; // CLK
   bus_config.mosi_io_num = spiMOSI; // MOSI
   bus_config.miso_io_num = spiMISO; // MISO
   bus_config.quadwp_io_num = -1; // Not used
   bus_config.quadhd_io_num = -1; // Not used
-  intError = spi_bus_initialize( VSPI_HOST, &bus_config, EnableDMA) ;
-  return intError;
+  ret = spi_bus_initialize( VSPI_HOST, &bus_config, EnableDMA) ;
+  return ret;
 }
 //////
-int fInitializeSPI_Devices( spi_host_device_t SPI_Host, spi_device_handle_t &h, int csPin)
+esp_err_t fInitializeSPI_Devices( spi_host_device_t SPI_Host, spi_device_handle_t &h, int csPin)
 {
+  esp_err_t ret;
   spi_device_interface_config_t dev_config = {};
   dev_config.mode = 0;
   dev_config.clock_speed_hz = 1000000; // 1MHz for MCP2515
   dev_config.spics_io_num = csPin;
   dev_config.queue_size = 1;
-  return spi_bus_add_device(SPI_Host, &dev_config, &h);
+  ret = spi_bus_add_device(SPI_Host, &dev_config, &h);
+  return ret;
   // return intError;
   // return h;
 } // void fInitializeSPI_Devices()
