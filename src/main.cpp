@@ -1,11 +1,15 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <pinout/devkitv1.h>
+#include <esp_wifi.h>
+#include <pinout/devkitc.h>
 #include <state_machine.h>
 #include <logger.h>
-#include <drivers/temperature/DHTSensor.h>
-#include <drivers/proximity/TCRT5000Sensor.h>
-#include <drivers/ultrasonic/UltrasonicSensor.h>
+#include <ESP_SSD1306.h>
+#include <Wire.h>
+
+#include <drivers/canbus/canbus.h>
+
+
 
 /*
   ============================
@@ -23,53 +27,42 @@
 // Timing intervals (in milliseconds)
 const unsigned int PRINT_INTERVAL = 1000;
 const unsigned int BLINK_INTERVAL = 500;
-const unsigned int DHT_UPDATE_INTERVAL = 2000;
-const unsigned int PROXIMITY_UPDATE_INTERVAL = 200;
-const unsigned int ULTRASONIC_UPDATE_INTERVAL = 1000;
+const unsigned int DISPLAY_INTERVAL = 2000;
+const unsigned int CAN_INTERVAL = 100;
+
 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
 void led_blink();
-void update_temperature();
-void update_proximity();
-void update_ultrasonic();
 
-void state_request_id();
 void state_configuration();
 void state_main();
+void state_request_id();
 
 // [3] ============== GLOBAL VARIABLES ==============
 
 // State machine object
 StateMachine programState;
+ESP_SSD1306 display(-1); // I2C pins for ESP32 DevKitC
+
+spi_device_handle_t spiHandle;
+MCP2515 mcp2515(&spiHandle); 
+
+esp_err_t ret;
 
 // Logger TAG
-const char *TAG_SETUP = "SETUP"; // Logger TAG
+const char *TAG_SETUP = "SETUP";
 const char *TAG_MAIN = "MAIN_STATE";
 const char *TAG_CAN = "CAN_STATE";
 
 // Millis timestamp holders
 unsigned long millisPrint = 0;
-unsigned long millisLed = 0;
-unsigned long millisDHT = 0;
-unsigned long millisProximity = 0;
-unsigned long millisUltrasonic = 0;
+unsigned long millisLed = 500;
+unsigned long millisCAN = 0;
 
 // Onboard LED state (HIGH = ON, LOW = OFF)
 bool ledState = LOW;
 
-// IR proximity sensor object
-TCRT5000Sensor proximitySensor(PIN_GPIO34);
-bool proximityState = false;
-
-// DHT sensor object and values
-DHTSensor dhtSensor(PIN_GPIO4, DHT22);
-float temperature = 0.0;
-float humidity = 0.0;
-
-// Ultrasonic sensor object
-UltrasonicSensor ultrasonicSensor(PIN_GPIO12, PIN_GPIO13);
-float distance = 0.0; // Distance in meters
 
 // [4] ========================= SETUP =========================
 void setup() {
@@ -77,6 +70,23 @@ void setup() {
   LOGI(TAG_SETUP, "Starting setup...");
   hardware_init();
   LOGI(TAG_SETUP, "Hardware initialized.");
+
+
+  ret = fInitializeSPI_Channel(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, VSPI_HOST, true);
+  if (ret != ESP_OK) {
+    LOGE(TAG_SETUP, "Error initializing SPI channel: %s", esp_err_to_name(ret));
+    return;
+  }
+  
+  ret = fInitializeSPI_Devices(VSPI_HOST, spiHandle, SPI_CS_PIN);
+  if (ret != ESP_OK) {
+    LOGE(TAG_SETUP, "Error initializing SPI device: %s", esp_err_to_name(ret));
+    return;
+  }
+
+  mcp2515.reset();
+  mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
+  mcp2515.setNormalMode();
 
   programState = StateMachine::STATE_REQUEST_ID; 
 }
@@ -95,17 +105,43 @@ void loop() {
       break;
     case StateMachine::STATE_MAIN:
       LOGI(TAG_MAIN, "State: Main");
+        // Request ID from CAN bus    
+      struct can_frame frame;
+      frame.can_id = 0x001;
+      frame.can_dlc = 4;
+      frame.data[0] = 0x01; // Request ID command
+      frame.data[1] = 0x02; // Request ID command
+      frame.data[2] = 0x03; // Request ID command
+      frame.data[3] = 0x04; // Request ID command
+
+      ret = mcp2515.sendMessage(&frame);
+      if (ret != ESP_OK) {
+        LOGE(TAG_MAIN, "Error sending CAN message: %s", esp_err_to_name(ret));
+      } else {
+        LOGI(TAG_MAIN, "CAN message sent successfully.");
+      }
       state_main();
       break;
   };
 
-  led_blink(); 
 
 }
 
 // [6] ============== FUNCTION DEFINITIONS ==============
 
 void state_request_id() {
+
+  // Request ID from CAN bus    
+  struct can_frame frame;
+  frame.can_id = 0x001;
+  frame.can_dlc = 4;
+  frame.data[0] = 0x01; // Request ID command
+  frame.data[1] = 0x02; // Request ID command
+  frame.data[2] = 0x03; // Request ID command
+  frame.data[3] = 0x04; // Request ID command
+
+  mcp2515.sendMessage(&frame);
+
   programState = StateMachine::STATE_CONFIGURATION; // Transition to next state
 }
 
@@ -114,17 +150,21 @@ void state_configuration() {
 }
 
 void state_main() {
-  // Placeholder for state_main logic
-  update_temperature();
-  update_proximity();
-  update_ultrasonic();
+  led_blink(); 
 }
 
 // Initialize hardware
 void hardware_init() {
-  Serial.begin(115200);
-  dhtSensor.begin();
-  pinMode(LED_BUILTIN, OUTPUT);
+  Serial.begin(9600);
+
+  // Setup LED
+  pinMode(GPIO_PIN13, OUTPUT);
+
+  // Setup I2C & display
+  // Wire.begin(21, 22);  // SDA = 21, SCL = 22
+  // display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // addr, reset
+
+
 }
 
 // Toggle onboard LED using non-blocking millis timing
@@ -132,31 +172,10 @@ void led_blink() {
   if (millis() - millisLed >= BLINK_INTERVAL) {
     millisLed = millis();
     ledState = !ledState;
-    digitalWrite(LED_BUILTIN, ledState);
+    digitalWrite(GPIO_PIN13, ledState);
+    LOGI(TAG_MAIN, "LED state: %s", ledState ? "ON" : "OFF");
+    
+    
   }
 }
 
-// Read from DHT sensor if enough time has passed
-void update_temperature() {
-  if (millis() - millisDHT >= DHT_UPDATE_INTERVAL) {
-    millisDHT = millis();
-    temperature = dhtSensor.readTemperature(); 
-    humidity = dhtSensor.readHumidity();
-  }
-}
-
-// Read from proximity sensor if enough time has passed
-void update_proximity() {
-  if (millis() - millisProximity >= PROXIMITY_UPDATE_INTERVAL) {
-    millisProximity = millis();
-    proximityState = proximitySensor.isClose();
-  }
-}
-
-// Read from ultrasonic sensor if enough time has passed
-void update_ultrasonic() {
-  if (millis() - millisUltrasonic >= ULTRASONIC_UPDATE_INTERVAL) {
-    millisUltrasonic = millis();
-    distance = ultrasonicSensor.getDistanceMeters();
-  }
-}
