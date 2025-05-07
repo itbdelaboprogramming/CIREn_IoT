@@ -43,6 +43,7 @@ int Canbus::send() {
             LOGE(TAG_CAN_LIB, "Error sending CAN message: %s", esp_err_to_name(ret));
         } else {
             LOGI(TAG_CAN_LIB, "CAN message (Extended) sent successfully.");
+            LOGI(TAG_CAN_LIB, "Data: %02X %02X %02X %02X %02X %02X %02X %02X", frame.data[0], frame.data[1], frame.data[2], frame.data[3], frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
         }
         
     } else {
@@ -60,12 +61,12 @@ int Canbus::send() {
 
 int Canbus::requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4, uint8_t c5) {
     
-    this->macAddress[0] = 0x0;
-    this->macAddress[1] = 0x1;
-    this->macAddress[2] = 0x2;
-    this->macAddress[3] = 0x3;
-    this->macAddress[4] = 0x4;
-    this->macAddress[5] = 0x5;
+    this->macAddress[0] = c0;
+    this->macAddress[1] = c1;
+    this->macAddress[2] = c2;
+    this->macAddress[3] = c3;
+    this->macAddress[4] = c4;
+    this->macAddress[5] = c5;
 
     uint32_t crc = calculateCrc(this->macAddress, 6);
     LOGI(TAG_CAN_LIB, "CRC: %X", crc);
