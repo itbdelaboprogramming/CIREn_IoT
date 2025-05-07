@@ -76,21 +76,6 @@ void setup() {
   LOGI(TAG_SETUP, "Hardware initialized.");
 
   canbus.init();
-  // ret = fInitializeSPI_Channel(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, VSPI_HOST, true);
-  // if (ret != ESP_OK) {
-  //   LOGE(TAG_SETUP, "Error initializing SPI channel: %s", esp_err_to_name(ret));
-  //   return;
-  // }
-  
-  // ret = fInitializeSPI_Devices(VSPI_HOST, spiHandle, SPI_CS_PIN);
-  // if (ret != ESP_OK) {
-  //   LOGE(TAG_SETUP, "Error initializing SPI device: %s", esp_err_to_name(ret));
-  //   return;
-  // }
-
-  // mcp2515.reset();
-  // mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
-  // mcp2515.setNormalMode();
 
   programState = StateMachine::STATE_REQUEST_ID; 
 }
@@ -162,6 +147,10 @@ void send_heartbeat() {
 void hardware_init() {
   Serial.begin(9600);
 
+  WiFi.mode(WIFI_STA);
+  WiFi.begin();
+
+
   // Setup LED
   pinMode(GPIO_PIN13, OUTPUT);
 
@@ -179,8 +168,7 @@ void led_blink() {
     ledState = !ledState;
     digitalWrite(GPIO_PIN13, ledState);
     LOGI(TAG_MAIN, "LED state: %s", ledState ? "ON" : "OFF");
-    
-    
+        
   }
 }
 
