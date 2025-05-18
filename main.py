@@ -31,7 +31,7 @@ def load_database():
     if not os.path.exists(DB_FILE):
         return db
 
-    with open(DB_FILE, 'r') as f:
+    with open(DB_FILE, 'rw') as f:
         for line in f:
             mac_str, id_str = line.strip().split(',')
             db[mac_str] = int(id_str)
@@ -48,8 +48,8 @@ def format_mac(data):
 
 
 def main():
-    logger.info("Initializing CAN interface on COM3 using SLCAN...")
-    bus = can.interface.Bus(bustype='slcan', channel='COM3', bitrate=500000)
+    # logger.info("Initializing CAN interface on COM3 using SLCAN...")
+    bus = can.interface.Bus(channel="can0", interface="socketcan")
 
     logger.info("Loading MAC database...")
     database = load_database()
@@ -112,4 +112,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        logger.info("Exiting...")
