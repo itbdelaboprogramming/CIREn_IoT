@@ -1,4 +1,4 @@
-#include "canbus.h"
+#include "Canbus.h"
 
 const char *TAG_CAN_LIB = "CAN_STATE";
 
@@ -85,7 +85,7 @@ int Canbus::requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4
 
     // Set Filter for the response message
     mcp2515.reset();
-    mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFFFFFF); 
+    mcp2515.setFilterMask(MCP2515::MASK0, true, 0x7FFFF); 
     mcp2515.setFilter(MCP2515::RXF0, true, (crc << 3 | 5) ); 
     mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
     mcp2515.setNormalMode();
