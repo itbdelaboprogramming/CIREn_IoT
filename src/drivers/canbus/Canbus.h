@@ -28,6 +28,10 @@
 };
 
 
+enum SensorId {
+
+};
+
 /**
  * This object implementation done with the assumption of 
  * only one SPI device on the bus
@@ -48,14 +52,47 @@
 
         int requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4, uint8_t c5);
     
-        void filterMessageByDeviceId(uint16_t deviceId);
-        void filterMessageBySensorId(uint16_t SensorId);
-        void filterMessageById(uint16_t id);
-        void filterMessageForIdRequest(uint8_t* macAddress);
+        int filterMessageByDeviceId(uint16_t deviceId);
+        int filterMessageBySensorId(uint16_t SensorId);
         
         void setMessageheartbeat();
-    
-        int getRxDeviceId();
+
+        void setMessageFloat(float data);
+        void setMessageTwoFloat(float data1, float data2);
+        void setMessageDouble(double data);
+
+        void setMessageInt8(int8_t data);
+        void setMessageInt8Two(int8_t data1, int8_t data2);
+        void setMessageInt8Three(int8_t data1, int8_t data2, int8_t data3);
+        void setMessageInt8Four(int8_t data1, int8_t data2, int8_t data3, int8_t data4);
+        
+
+        void setMessageInt16(int16_t data);
+        void setMessageInt16Two(int16_t data1, int16_t data2);
+        void setMessageInt16Three(int16_t data1, int16_t data2, int16_t data3);
+        void setMessageInt16Four(int16_t data1, int16_t data2, int16_t data3, int16_t data4);
+
+        void setMessageInt32(int32_t data);
+        void setMessageInt32Two(int32_t data1, int32_t data2);
+
+        void setMessageUint8(uint8_t data);
+        void setMessageUint8Two(uint8_t data1, uint8_t data2);
+        void setMessageUint8Three(uint8_t data1, uint8_t data2, uint8_t data3);
+        void setMessageUint8Four(uint8_t data1, uint8_t data2, uint8_t data3, uint8_t data4);
+        void setMessageUint8Five(uint8_t data1, uint8_t data2, uint8_t data3, uint8_t data4, uint8_t data5);
+        void setMessageUint8Six(uint8_t data1, uint8_t data2, uint8_t data3, uint8_t data4, uint8_t data5, uint8_t data6);
+        void setMessageUint8Seven(uint8_t data1, uint8_t data2, uint8_t data3, uint8_t data4, uint8_t data5, uint8_t data6, uint8_t data7);
+        void setMessageUint8Eight(uint8_t data1, uint8_t data2, uint8_t data3, uint8_t data4, uint8_t data5, uint8_t data6, uint8_t data7, uint8_t data8);
+
+        void setMessageUint16(uint16_t data);
+        void setMessageUint16Two(uint16_t data1, uint16_t data2);
+        void setMessageUint16Three(uint16_t data1, uint16_t data2, uint16_t data3);
+        void setMessageUint16Four(uint16_t data1, uint16_t data2, uint16_t data3, uint16_t data4);
+        
+        void setMessageUint32(uint32_t data);
+        void setMessageUint32Two(uint32_t data1, uint32_t data2);
+
+        int getDeviceId();
         // int getRxSensorId();
         // int getRxheaderStdId();
     

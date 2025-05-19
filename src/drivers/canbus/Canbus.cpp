@@ -144,20 +144,28 @@ void Canbus::setDeviceId(uint16_t deviceId) {
     this->deviceId = deviceId;
 }
 
-void Canbus::filterMessageByDeviceId(uint16_t deviceId) {
+int Canbus::filterMessageByDeviceId(uint16_t id) {
+
+    this->mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFFFF); // Set the filter mask
+    this->mcp2515.setFilter(MCP2515::RXF0, true, (id | CAN_EFF_FLAG)); // Set the filter for the device ID
+    this->mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
+    this->mcp2515.setNormalMode();
+    
+    return ESP_OK;
 
 }
-void Canbus::filterMessageBySensorId(uint16_t SensorId) {
+int Canbus::filterMessageBySensorId(uint16_t id) {
+
+    this->mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFF << 16); // Set the filter mask
+    this->mcp2515.setFilter(MCP2515::RXF0, true, (id << 16 | CAN_EFF_FLAG)); // Set the filter for the sensor ID
+    this->mcp2515.setBitrate(CAN_500KBPS, MCP_8MHZ);
+    this->mcp2515.setNormalMode();
+    
+    return ESP_OK;
 
 }
-void Canbus::filterMessageById(uint16_t id) {
 
-}
-void Canbus::filterMessageForIdRequest(uint8_t* macAddress) {
-
-}
-
-int Canbus::getRxDeviceId() {
+int Canbus::getDeviceId() {
     return this->deviceId;
 }
 
@@ -166,4 +174,11 @@ void Canbus::setMessageheartbeat() {
     this->txHeader.dlc = 1; // Set the data length code (DLC) to 8 bytes
     this->txHeader.rtr = false; // Set the remote transmission request (RTR) flag to false
     this->txHeader.isExtended = true; // Set the extended ID flag to false
+
+    this->txMailbox[0] = 0x01; // Set the heartbeat message data
+}
+
+void Canbus::setMessageFloat(float data) {
+    memcpy(this->txMailbox, &data, sizeof(data)); // Copy the float data to the mailbox
+    this->txHeader.dlc = sizeof(data); // Set the data length code (DLC) to the size of the float
 }

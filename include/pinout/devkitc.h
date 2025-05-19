@@ -14,6 +14,7 @@
  #define GPIO_PIN3      3
  #define GPIO_PIN4      4
  #define GPIO_PIN5      5
+#define GPIO_PIN6      6
  #define GPIO_PIN12    12
  #define GPIO_PIN13    13
  #define GPIO_PIN14    14
@@ -88,7 +89,7 @@
  #define TOUCH_CH9_PIN      GPIO_PIN32
  
  // --- LED Indicator ---
- #define LED_BUILTIN        GPIO_PIN2   // Most ESP32 DevKitC boards use GPIO2 for onboard LED
+ #define LED_BUILTIN        GPIO_PIN13   // Most ESP32 DevKitC boards use GPIO2 for onboard LED
  
  // =======================
  // Special Purpose Pins
