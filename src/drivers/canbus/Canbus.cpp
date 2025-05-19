@@ -135,8 +135,8 @@ void Canbus::setStandardId(uint16_t deviceId, uint16_t SensorId) {
     this->txHeader.standardId = (deviceId << 8) | SensorId;
     this->txHeader.isExtended = false;
 }
-void Canbus::setExtendedId(uint16_t deviceId, uint16_t SensorId) {
-    this->txHeader.extendedId = ((deviceId << 16) | SensorId) | CAN_EFF_FLAG;
+void Canbus::setExtendedId(uint16_t deviceId, uint16_t SensorId, uint16_t dataId) {
+    this->txHeader.extendedId = ((((deviceId << 4) | SensorId) << 4) | dataId)| CAN_EFF_FLAG;
     this->txHeader.isExtended = true;
 }
 
@@ -154,6 +154,7 @@ int Canbus::filterMessageByDeviceId(uint16_t id) {
     return ESP_OK;
 
 }
+
 int Canbus::filterMessageBySensorId(uint16_t id) {
 
     this->mcp2515.setFilterMask(MCP2515::MASK0, true, 0xFF << 16); // Set the filter mask

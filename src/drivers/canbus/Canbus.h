@@ -47,7 +47,7 @@ enum SensorId {
         int send();
     
         void setStandardId(uint16_t deviceId, uint16_t SensorId);
-        void setExtendedId(uint16_t deviceId, uint16_t SensorId);
+        void setExtendedId(uint16_t deviceId, uint16_t SensorId, uint16_t dataId);
         void setDeviceId(uint16_t deviceId);
 
         int requestId(uint8_t c0, uint8_t c1, uint8_t c2, uint8_t c3, uint8_t c4, uint8_t c5);
