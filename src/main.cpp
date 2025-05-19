@@ -11,6 +11,7 @@
 
 #include <DHT.h>
 #include <drivers/canbus/Canbus.h>
+#include <canbus_id.h>
 
 /*
   ============================
@@ -40,6 +41,7 @@ void state_main();
 void state_request_id();
 
 void send_heartbeat();
+void send_sensor_data();
 void update_sensor();
 // [3] ============== GLOBAL VARIABLES ==============
 
@@ -65,6 +67,7 @@ unsigned long millisPrint = 0;
 unsigned long millisLed = 0;
 unsigned long millisCAN = 0;
 unsigned long millisSensor = 0;
+unsigned long millisSendSensorData = 0;
 
 // Onboard LED state (HIGH = ON, LOW = OFF)
 bool ledState = LOW;
@@ -72,6 +75,7 @@ bool configState = false;
 
 float DHT_Humidity = 0.0;
 float DHT_Temperature = 0.0;
+
 
 // [4] ========================= SETUP =========================
 void setup() {
@@ -165,6 +169,7 @@ void state_main() {
   send_heartbeat();
   led_blink(); 
   update_sensor();
+  send_sensor_data();
 }
 
 void send_heartbeat() {
@@ -177,17 +182,18 @@ void send_heartbeat() {
 
 void update_sensor() {
 
+  // Update DHT sensor
   if(millis() - millisSensor >= SENSOR_INTERVAL) {
     millisSensor = millis();
 
-    float DHT_Humidity = dht.readHumidity();
+    DHT_Humidity = dht.readHumidity();
     ret = isnan(DHT_Humidity);
     if (ret) {
       LOGE(TAG_MAIN, "Failed to read humidity from DHT sensor.");
       return;
     }
 
-    float DHT_Temperature = dht.readTemperature();
+    DHT_Temperature = dht.readTemperature();
     ret = isnan(DHT_Temperature);
     if (ret) {
       LOGE(TAG_MAIN, "Failed to read temperature from DHT sensor.");
@@ -196,10 +202,24 @@ void update_sensor() {
 
     LOGI(TAG_MAIN, "Humidity: %.2f%%, Temperature: %.2f°C", DHT_Humidity, DHT_Temperature);
 
-
   }
 
+}
 
+void send_sensor_data() {
+  if(millis() - millisSendSensorData >= SENSOR_INTERVAL) {
+    millisSendSensorData = millis();
+
+    canbus.setExtendedId(canbus.getDeviceId(), sensorId::DHT22, dhtDataId::HUMIDITY);
+    canbus.setMessageFloat(DHT_Humidity);
+    canbus.send();
+    LOGI(TAG_MAIN, "Humidity sent: %.2f%%", DHT_Humidity);
+
+    canbus.setExtendedId(canbus.getDeviceId(), sensorId::DHT22, dhtDataId::TEMPERATURE);
+    canbus.setMessageFloat(DHT_Temperature);
+    canbus.send();
+    LOGI(TAG_MAIN, "Temperature sent: %.2f°C", DHT_Temperature);
+  }
 }
 
 // Initialize hardware
