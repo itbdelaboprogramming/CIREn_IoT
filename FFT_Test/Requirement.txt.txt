@@ -1,0 +1,5 @@
+arduinoFFT
+Wire
+DFRobot_ADXL345
+DFRobot_BNO055
+DFRobot_BMP280
