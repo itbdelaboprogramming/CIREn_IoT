@@ -264,12 +264,12 @@ void can_send_sensor_data() {
   if(millis() - millisSendSensorData >= SENSOR_INTERVAL) {
     millisSendSensorData = millis();
 
-    canbus.setExtendedId(canbus.getDeviceId(), sensorId::DHT22, dhtDataId::HUMIDITY);
+    canbus.setExtendedId(canbus.getDeviceId(), 1, 0);
     canbus.setMessageFloat(DHT_Humidity);
     canbus.send();
     LOGI(TAG_MAIN, "Humidity sent: %.2f%%", DHT_Humidity);
 
-    canbus.setExtendedId(canbus.getDeviceId(), sensorId::DHT22, dhtDataId::TEMPERATURE);
+    canbus.setExtendedId(canbus.getDeviceId(), 1, 1);
     canbus.setMessageFloat(DHT_Temperature);
     canbus.send();
     LOGI(TAG_MAIN, "Temperature sent: %.2f°C", DHT_Temperature);
