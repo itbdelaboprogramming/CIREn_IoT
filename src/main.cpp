@@ -6,10 +6,10 @@
 #include <pinout/devkitc.h>
 #include <state_machine.h>
 #include <logger.h>
-#include <ESP_SSD1306.h>
 #include <Wire.h>
 
 #include <DHT.h>
+#include <U8g2lib.h>
 #include <drivers/canbus/Canbus.h>
 #include <canbus_id.h>
 
@@ -39,20 +39,19 @@ void led_blink();
 void state_configuration();
 void state_main();
 void state_request_id();
+void state_introduction();
 
-void send_heartbeat();
-void send_sensor_data();
+void can_send_heartbeat();
+void can_send_sensor_data();
 void update_sensor();
 // [3] ============== GLOBAL VARIABLES ==============
 
 // State machine object
 StateMachine programState;
-ESP_SSD1306 display(-1); // I2C pins for ESP32 DevKitC
-
 spi_device_handle_t spiHandle;
 MCP2515 mcp2515(&spiHandle); 
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 Canbus canbus(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, SPI_CS_PIN, GPIO_PIN6, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
-
 DHT dht(GPIO_PIN33, DHT22); // Pin for DHT sensor
 
 esp_err_t ret;
@@ -75,7 +74,6 @@ bool configState = false;
 
 float DHT_Humidity = 0.0;
 float DHT_Temperature = 0.0;
-
 
 // [4] ========================= SETUP =========================
 void setup() {
@@ -114,10 +112,10 @@ void loop() {
 
 void state_request_id() {
 
-  display.clearDisplay();
-  display.setTextSize(1);
-  display.setTextColor(WHITE);
-  display.setCursor(0, 0);
+  // display.clearDisplay();
+  // display.setTextSize(1);
+  // display.setTextColor(WHITE);
+  // display.setCursor(0, 0);
 
   uint8_t macAddress[6];
   char macStr[32]; // large enough buffer
@@ -132,9 +130,9 @@ void state_request_id() {
             macAddress[3], macAddress[4], macAddress[5]);
   LOGI(TAG_CAN, "MAC address: %s", macStr);
 
-  display.println("Requesting ID...");
-  display.println(macStr);
-  display.display(); 
+  // display.println("Requesting ID...");
+  // display.println(macStr);
+  // display.display(); 
 
   ret = canbus.requestId(macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
   if (ret != ESP_OK) {
@@ -151,9 +149,9 @@ void state_request_id() {
     return;
   }
 
-  display.println("ID received:");
-  display.println(canbus.getDeviceId());
-  display.display();
+  // display.println("ID received:");
+  // display.println(canbus.getDeviceId());
+  // display.display();
 
   delay(5000); 
 
@@ -161,18 +159,18 @@ void state_request_id() {
 }
 
 void state_configuration() {
-  send_heartbeat();
+  can_send_heartbeat();
   programState = StateMachine::STATE_MAIN; // Transition to next state
 }
 
 void state_main() {
-  send_heartbeat();
+  can_send_heartbeat();
   led_blink(); 
   update_sensor();
-  send_sensor_data();
+  can_send_sensor_data();
 }
 
-void send_heartbeat() {
+void can_send_heartbeat() {
   if(millis() - millisCAN >= CAN_HEARTBEAT) {
     millisCAN = millis();
     canbus.setMessageheartbeat(); 
@@ -206,7 +204,7 @@ void update_sensor() {
 
 }
 
-void send_sensor_data() {
+void can_send_sensor_data() {
   if(millis() - millisSendSensorData >= SENSOR_INTERVAL) {
     millisSendSensorData = millis();
 
@@ -234,10 +232,13 @@ void hardware_init() {
 
   // Setup I2C & display
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);  
-  display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // addr, reset
+  // display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // addr, reset
 
   // Setup DHT sensor
   dht.begin();
+
+  // Setup for display
+  u8g2.begin();
 }
 
 // Toggle onboard LED using non-blocking millis timing
