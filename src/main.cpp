@@ -41,7 +41,6 @@ const unsigned int SCREEN_UPDATE_INTERVAL = 200;
 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
-void led_blink();
 
 void state_configuration();
 void state_main();
@@ -71,6 +70,7 @@ void button_next_page();
 
 // State machine object
 StateMachine programState;
+StateMainMenu mainMenuState;
 spi_device_handle_t spiHandle;
 MCP2515 mcp2515(&spiHandle); 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
@@ -171,10 +171,6 @@ void state_request_id() {
             macAddress[3], macAddress[4], macAddress[5]);
   LOGI(TAG_CAN, "MAC address: %s", macStr);
 
-  // display.println("Requesting ID...");
-  // display.println(macStr);
-  // display.display(); 
-
   ret = canbus.requestId(macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
   if (ret != ESP_OK) {
     LOGE(TAG_CAN, "Error requesting ID: %s", esp_err_to_name(ret));
@@ -214,15 +210,47 @@ void state_introduction() {
 }
 
 void state_configuration() {
+
+  if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL) {
+    screen_draw_configuration();
+    millisScreenUpdate = millis();
+  }
+
   can_send_heartbeat();
   programState = StateMachine::STATE_MAIN; // Transition to next state
 }
 
 void state_main() {
+  button_handle_input();
+
+  if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL) {
+    switch (mainMenuState) {
+      case StateMainMenu::STATE_TEMP_HUMIDITY:
+        screen_draw_main_temperature();
+        break;
+      case StateMainMenu::STATE_VIBRATION:
+        screen_draw_main_vibration();
+        break;
+      case StateMainMenu::STATE_EXTREME_TEMP:
+        screen_draw_main_extreme_temperature();
+        break;
+      case StateMainMenu::STATE_ENVIRONMENT:
+        screen_draw_main_environment();
+        break;
+      case StateMainMenu::STATE_SETTINGS:
+        screen_draw_main_settings();
+        break;
+      case StateMainMenu::STATE_RESET:
+        screen_draw_main_reset();
+        break;
+    }
+    millisScreenUpdate = millis();
+  }
+
   can_send_heartbeat();
-  led_blink(); 
-  update_sensor();
   can_send_sensor_data();
+  
+  update_sensor();
 }
 
 void can_send_heartbeat() {
@@ -299,16 +327,6 @@ void hardware_init() {
   pinMode(BTN_SELECT, INPUT_PULLUP);
   pinMode(BTN_DOWN, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
-}
-
-// Toggle onboard LED using non-blocking millis timing
-void led_blink() {
-  if (millis() - millisLed >= BLINK_INTERVAL) {
-    millisLed = millis();
-    ledState = !ledState;
-    digitalWrite(LED_BUILTIN, ledState);
-    LOGI(TAG_MAIN, "LED state: %s", ledState ? "ON" : "OFF");  
-  }
 }
 
 void button_handle_input() {
@@ -423,4 +441,73 @@ void screen_draw_configuration() {
 
 }
 
+void screen_draw_main_temperature() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Temperature");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "Humidity: ");
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.setCursor(60, 20);
+  u8g2.print(DHT_Humidity);
+  u8g2.print("%");
 
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 30, "Temperature: ");
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.setCursor(80, 30);
+  u8g2.print(DHT_Temperature);
+  u8g2.print("C");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_vibration() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Vibration");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "No data available");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_extreme_temperature() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Extreme Temperature");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "No data available");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_environment() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Environment");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "No data available");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_settings() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Settings");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "No settings available");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_reset() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, "Reset");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 20, "Press to reset device");
+
+  u8g2.sendBuffer();
+}

@@ -6,3 +6,12 @@ enum class StateMachine {
     STATE_MAIN,
     STATE_INTRO
 };
+
+enum class StateMainMenu {
+    STATE_TEMP_HUMIDITY,
+    STATE_VIBRATION,
+    STATE_EXTREME_TEMP,
+    STATE_ENVIRONMENT,
+    STATE_SETTINGS,
+    STATE_RESET
+};
