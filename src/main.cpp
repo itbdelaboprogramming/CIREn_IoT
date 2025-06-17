@@ -10,6 +10,7 @@
 
 #include <DHT.h>
 #include <U8g2lib.h>
+#include <Adafruit_NeoPixel.h>
 #include <drivers/canbus/Canbus.h>
 #include <canbus_id.h>
 
@@ -31,6 +32,13 @@ const unsigned int PRINT_INTERVAL = 1000;
 const unsigned int BLINK_INTERVAL = 500;
 const unsigned int SENSOR_INTERVAL = 1000;
 const unsigned int CAN_HEARTBEAT = 100;
+const unsigned int SCREEN_UPDATE_INTERVAL = 200;
+
+// --- Button Pins ---
+#define BTN_SELECT 32
+#define BTN_DOWN   33
+#define BTN_UP     25
+#define LED_PIN    18
 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
@@ -41,9 +49,25 @@ void state_main();
 void state_request_id();
 void state_introduction();
 
+void screen_draw_intro();
+void screen_draw_configuration();
+void screen_draw_request_id();
+
+void screen_draw_main_temperature();
+void screen_draw_main_vibration();
+void screen_draw_main_extreme_temperature();
+void screen_draw_main_environment();
+void screen_draw_main_settings();
+void screen_draw_main_reset();
+
 void can_send_heartbeat();
 void can_send_sensor_data();
+
+void led_set_color(uint8_t r, uint8_t g, uint8_t b); 
 void update_sensor();
+
+void button_handle_input();
+void button_next_page();
 // [3] ============== GLOBAL VARIABLES ==============
 
 // State machine object
@@ -53,6 +77,9 @@ MCP2515 mcp2515(&spiHandle);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 Canbus canbus(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, SPI_CS_PIN, GPIO_PIN6, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
 DHT dht(GPIO_PIN33, DHT22); // Pin for DHT sensor
+
+#define NUMPIXELS   1
+Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 esp_err_t ret;
 
@@ -67,6 +94,7 @@ unsigned long millisLed = 0;
 unsigned long millisCAN = 0;
 unsigned long millisSensor = 0;
 unsigned long millisSendSensorData = 0;
+unsigned long millisScreenUpdate = 0;
 
 // Onboard LED state (HIGH = ON, LOW = OFF)
 bool ledState = LOW;
@@ -74,6 +102,18 @@ bool configState = false;
 
 float DHT_Humidity = 0.0;
 float DHT_Temperature = 0.0;
+
+bool isConfigured = false;
+uint32_t statusStartTime = 0;
+
+// --- Menu State ---
+const char* menuItems[6] = {
+  "Temp & Humidity", "Vibration", "Extreme Temperature",
+  "Enviroment", "Settings", "Reset"
+};
+int selectedMenu = 0;
+bool lastStateSelect = HIGH, lastStateUp = HIGH, lastStateDown = HIGH;
+
 
 // [4] ========================= SETUP =========================
 void setup() {
@@ -84,13 +124,17 @@ void setup() {
 
   canbus.init();
 
-  programState = StateMachine::STATE_REQUEST_ID; 
+  programState = StateMachine::STATE_INTRO; 
 }
 
 // [5] ========================= LOOP =========================
 void loop() {
   
   switch (programState) {
+    case StateMachine::STATE_INTRO:
+      LOGI(TAG_MAIN, "State: Intro");
+      state_introduction();
+      break;
     case StateMachine::STATE_REQUEST_ID:
       LOGI(TAG_MAIN, "State: Request ID");
       state_request_id();
@@ -111,11 +155,9 @@ void loop() {
 // [6] ============== FUNCTION DEFINITIONS ==============
 
 void state_request_id() {
+  button_handle_input();
 
-  // display.clearDisplay();
-  // display.setTextSize(1);
-  // display.setTextColor(WHITE);
-  // display.setCursor(0, 0);
+  screen_draw_request_id();
 
   uint8_t macAddress[6];
   char macStr[32]; // large enough buffer
@@ -149,13 +191,27 @@ void state_request_id() {
     return;
   }
 
-  // display.println("ID received:");
-  // display.println(canbus.getDeviceId());
-  // display.display();
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(20, 60, "SUCCESS! ID:XX");
+  u8g2.sendBuffer();
 
   delay(5000); 
 
   programState = StateMachine::STATE_CONFIGURATION;
+}
+
+void state_introduction() {
+  button_handle_input();
+
+  if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL){
+    screen_draw_intro();
+  }
+
+  if(millis() - millisPrint >= PRINT_INTERVAL) {
+    millisPrint = millis();
+    LOGI(TAG_MAIN, "In introduction state.");
+  }
+
 }
 
 void state_configuration() {
@@ -239,6 +295,11 @@ void hardware_init() {
 
   // Setup for display
   u8g2.begin();
+
+  // Setup the navigation buttons
+  pinMode(BTN_SELECT, INPUT_PULLUP);
+  pinMode(BTN_DOWN, INPUT_PULLUP);
+  pinMode(BTN_UP, INPUT_PULLUP);
 }
 
 // Toggle onboard LED using non-blocking millis timing
@@ -250,4 +311,117 @@ void led_blink() {
     LOGI(TAG_MAIN, "LED state: %s", ledState ? "ON" : "OFF");  
   }
 }
+
+void button_handle_input() {
+  bool selectPressed = !digitalRead(BTN_SELECT);
+  bool upPressed = !digitalRead(BTN_UP);
+  bool downPressed = !digitalRead(BTN_DOWN);
+
+  unsigned long now = millis();
+
+  if (selectPressed && lastStateSelect == false) {
+    button_next_page();
+  }
+
+  if (programState == StateMachine::STATE_CONFIGURATION) {
+    if (downPressed && lastStateDown == false) {
+      if (selectedMenu < 5) selectedMenu++;
+    }
+    if (upPressed && lastStateUp == false) {
+      if (selectedMenu > 0) selectedMenu--;
+    }
+  }
+
+  lastStateSelect = selectPressed;
+  lastStateDown = downPressed;
+  lastStateUp = upPressed;
+}
+
+void button_next_page() {
+
+  if (programState == StateMachine::STATE_INTRO) {
+    if(isConfigured){
+      programState = StateMachine::STATE_MAIN;
+      led_set_color(255, 255, 0); // Green for configuration
+    } else {
+      programState = StateMachine::STATE_CONFIGURATION;
+      led_set_color(0, 255, 0); // Red for main
+    }
+
+    statusStartTime = millis();
+
+  } else if (programState == StateMachine::STATE_CONFIGURATION) {
+    programState = StateMachine::STATE_MAIN;
+    led_set_color(255, 0, 255); // Purple for menu
+
+  } else {
+    programState = StateMachine::STATE_INTRO;
+    led_set_color(0, 0, 255); // Back to blue
+  }
+
+}
+
+void led_set_color(uint8_t r, uint8_t g, uint8_t b) {
+  pixels.setPixelColor(0, pixels.Color(r, g, b));
+  pixels.show();
+}
+
+
+void screen_draw_intro() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  u8g2.drawStr(6, 25, "ITB de Labo");
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(20, 40, "Sensor Module");
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(16, 63, "Furqon - Nauval - Zaqi");
+  u8g2.sendBuffer();
+}
+
+void screen_draw_request_id() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 6, "A0:B1:C2:D3:E4:F5");
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(20, 27, "Requesting id...");
+
+  unsigned long elapsed = (millis() - statusStartTime) / 1000;
+  
+  char buffer[32];
+  u8g2.setFont(u8g2_font_6x10_tr);
+  sprintf(buffer, "Elapsed Time: %lus", elapsed);
+  u8g2.drawStr(15, 40, buffer);
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_configuration() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_6x12_tr);
+
+  int topVisible = selectedMenu / 3 * 3;
+
+  for (int i = 0; i < 3; i++) {
+    int index = topVisible + i;
+    if (index >= 6) break;
+
+    int y = 15 + i * 15;
+    if (index == selectedMenu) {
+      u8g2.drawBox(0, y - 10, 128, 14);
+      u8g2.setDrawColor(0);
+      u8g2.drawStr(5, y, menuItems[index]);
+      u8g2.setDrawColor(1);
+
+    } else {
+      u8g2.drawStr(5, y, menuItems[index]);
+    }
+  }
+
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 63, "SM-XX          A0:B1:C2:D3:E4:F5");
+
+  u8g2.sendBuffer();
+
+}
+
 
