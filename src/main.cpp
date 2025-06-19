@@ -330,7 +330,7 @@ void can_send_sensor_data() {
     canbus.setMessageFloat(MAX6675_Temperature);
     canbus.send();
     LOGI(TAG_MAIN, "MAX6675 Temperature sent: %.2f°C", MAX6675_Temperature);
-    
+
   }
 }
 
@@ -561,6 +561,18 @@ void screen_draw_main_reset() {
   u8g2.drawStr(0, 10, "Reset");
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 20, "Press to reset device");
+
+  u8g2.sendBuffer();
+}
+
+void screen_draw_main_extreme_temperature() {
+  u8g2.clearBuffer();
+
+  char buffer_extreme_temp[32];
+  snprintf(buffer_extreme_temp, sizeof(buffer_extreme_temp), "Extreme Temp: %.2fC", MAX6675_Temperature);
+
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.drawStr(0, 10, buffer_extreme_temp);
 
   u8g2.sendBuffer();
 }
