@@ -249,21 +249,27 @@ void state_main() {
   if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL) {
     switch (mainMenuState) {
       case StateMainMenu::STATE_TEMP_HUMIDITY:
+        LOGI(TAG_MAIN,"[MENU_1]");
         screen_draw_main_temperature();
         break;
       case StateMainMenu::STATE_VIBRATION:
+        LOGI(TAG_MAIN,"[MENU_2]");
         screen_draw_main_vibration();
         break;
       case StateMainMenu::STATE_EXTREME_TEMP:
+        LOGI(TAG_MAIN,"[MENU_3]");
         screen_draw_main_extreme_temperature();
         break;
       case StateMainMenu::STATE_ENVIRONMENT:
+        LOGI(TAG_MAIN,"[MENU_4]");
         screen_draw_main_environment();
         break;
       case StateMainMenu::STATE_SETTINGS:
+        LOGI(TAG_MAIN,"[MENU_5]");
         screen_draw_main_settings();
         break;
       case StateMainMenu::STATE_RESET:
+        LOGI(TAG_MAIN,"[MENU_6]");
         screen_draw_main_reset();
         break;
     }
@@ -366,20 +372,9 @@ void hardware_init() {
 }
 
 void button_handle_input() {
-  // Check serial input
-  if (Serial.available()) {
-    String input = Serial.readStringUntil('\n');
-    input.trim();  // Remove newline and whitespaces
-
-    if (input.equalsIgnoreCase("SELECT")) serialSelectPressed = true;
-    else if (input.equalsIgnoreCase("UP")) serialUpPressed = true;
-    else if (input.equalsIgnoreCase("DOWN")) serialDownPressed = true;
-  }
-
-  // Combine hardware and serial input
-  bool selectPressed = !digitalRead(BTN_SELECT) || serialSelectPressed;
-  bool upPressed     = !digitalRead(BTN_UP)     || serialUpPressed;
-  bool downPressed   = !digitalRead(BTN_DOWN)   || serialDownPressed;
+  bool selectPressed = !digitalRead(BTN_SELECT);
+  bool upPressed = !digitalRead(BTN_UP);
+  bool downPressed = !digitalRead(BTN_DOWN);
 
   LOGI(TAG_MAIN, "Button states - Select: %d, Up: %d, Down: %d", selectPressed, upPressed, downPressed);
 
@@ -416,54 +411,7 @@ void button_handle_input() {
   lastStateSelect = selectPressed;
   lastStateDown = downPressed;
   lastStateUp = upPressed;
-
-  // Reset serial press flags after processing (simulate one-shot)
-  serialSelectPressed = false;
-  serialUpPressed = false;
-  serialDownPressed = false;
 }
-
-// void button_handle_input() {
-//   bool selectPressed = !digitalRead(BTN_SELECT);
-//   bool upPressed = !digitalRead(BTN_UP);
-//   bool downPressed = !digitalRead(BTN_DOWN);
-
-//   LOGI(TAG_MAIN, "Button states - Select: %d, Up: %d, Down: %d", selectPressed, upPressed, downPressed);
-
-//   unsigned long now = millis();
-
-//   if (selectPressed && lastStateSelect == false) {
-//     if(programState == StateMachine::STATE_CONFIGURATION) {
-//       if (selectedMenu == 0) {
-//         mainMenuState = StateMainMenu::STATE_TEMP_HUMIDITY;
-//       } else if (selectedMenu == 1) {
-//         mainMenuState = StateMainMenu::STATE_VIBRATION;
-//       } else if (selectedMenu == 2) {
-//         mainMenuState = StateMainMenu::STATE_EXTREME_TEMP;
-//       } else if (selectedMenu == 3) {
-//         mainMenuState = StateMainMenu::STATE_ENVIRONMENT;
-//       } else if (selectedMenu == 4) {
-//         mainMenuState = StateMainMenu::STATE_SETTINGS;
-//       } else if (selectedMenu == 5) {
-//         mainMenuState = StateMainMenu::STATE_RESET;
-//       }
-//     }
-//     button_next_page();
-//   }
-
-//   if (programState == StateMachine::STATE_CONFIGURATION) {
-//     if (downPressed && lastStateDown == false) {
-//       if (selectedMenu < 5) selectedMenu++;
-//     }
-//     if (upPressed && lastStateUp == false) {
-//       if (selectedMenu > 0) selectedMenu--;
-//     }
-//   }
-
-//   lastStateSelect = selectPressed;
-//   lastStateDown = downPressed;
-//   lastStateUp = upPressed;
-// }
 
 void button_next_page() {
 
