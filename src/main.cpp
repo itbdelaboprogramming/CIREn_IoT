@@ -35,9 +35,9 @@ const unsigned int SCREEN_UPDATE_INTERVAL = 200;
 
 // --- Button Pins ---
 #define BTN_SELECT 32
-#define BTN_DOWN   35
+#define BTN_DOWN   36
 #define BTN_UP     25
-#define LED_PIN    18
+#define LED_PIN    16
 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
@@ -77,6 +77,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 Canbus canbus(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, SPI_CS_PIN, GPIO_PIN6, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
 DHT dht(GPIO_PIN33, DHT22); // Pin for DHT sensor
 
+
 #define NUMPIXELS   1
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -104,6 +105,7 @@ float DHT_Temperature = 0.0;
 
 bool isConfigured = false;
 uint32_t statusStartTime = 0;
+uint8_t macAddress[6];
 
 // --- Menu State ---
 const char* menuItems[6] = {
@@ -112,6 +114,7 @@ const char* menuItems[6] = {
 };
 int selectedMenu = 0;
 bool lastStateSelect = HIGH, lastStateUp = HIGH, lastStateDown = HIGH;
+char macStr[32]; // Buffer for MAC address string
 
 
 // [4] ========================= SETUP =========================
@@ -156,21 +159,18 @@ void loop() {
 void state_request_id() {
   button_handle_input();
 
-  screen_draw_request_id();
-
-  uint8_t macAddress[6];
-  char macStr[32]; // large enough buffer
-
   ret = esp_wifi_get_mac(WIFI_IF_STA, macAddress);
   if (ret != ESP_OK) {
     LOGE(TAG_CAN, "Error getting MAC address: %s", esp_err_to_name(ret));
   } 
-
+  
   snprintf(macStr, sizeof(macStr), "MAC:\n%02X:%02X:%02X:%02X:%02X:%02X", 
-            macAddress[0], macAddress[1], macAddress[2],
-            macAddress[3], macAddress[4], macAddress[5]);
+  macAddress[0], macAddress[1], macAddress[2],
+  macAddress[3], macAddress[4], macAddress[5]);
   LOGI(TAG_CAN, "MAC address: %s", macStr);
-
+  
+  screen_draw_request_id();
+  
   ret = canbus.requestId(macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
   if (ret != ESP_OK) {
     LOGE(TAG_CAN, "Error requesting ID: %s", esp_err_to_name(ret));
@@ -186,8 +186,11 @@ void state_request_id() {
     return;
   }
 
+  char buf[32];  // Make sure the buffer is large enough
+  snprintf(buf, sizeof(buf), "SUCCESS! ID:%d", canbus.getDeviceId());
+
   u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(20, 60, "SUCCESS! ID:XX");
+  u8g2.drawStr(20, 60, buf);
   u8g2.sendBuffer();
 
   delay(5000); 
@@ -309,7 +312,7 @@ void hardware_init() {
   Serial.begin(115200);
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin();
+  // WiFi.begin();
 
   // Setup LED
   pinMode(LED_BUILTIN, OUTPUT);
@@ -334,6 +337,8 @@ void button_handle_input() {
   bool selectPressed = !digitalRead(BTN_SELECT);
   bool upPressed = !digitalRead(BTN_UP);
   bool downPressed = !digitalRead(BTN_DOWN);
+
+  LOGI(TAG_MAIN, "Button states - Select: %d, Up: %d, Down: %d", selectPressed, upPressed, downPressed);
 
   unsigned long now = millis();
 
@@ -369,12 +374,12 @@ void button_next_page() {
     statusStartTime = millis();
 
   } else if (programState == StateMachine::STATE_CONFIGURATION) {
-    programState = StateMachine::STATE_MAIN;
     led_set_color(255, 0, 255); // Purple for menu
+    programState = StateMachine::STATE_MAIN;
 
-  } else {
-    programState = StateMachine::STATE_INTRO;
+  } else if (programState == StateMachine::STATE_MAIN) {
     led_set_color(0, 0, 255); // Back to blue
+    programState = StateMachine::STATE_INTRO;
   }
 
 }
@@ -397,18 +402,27 @@ void screen_draw_intro() {
 }
 
 void screen_draw_request_id() {
+
+  
+
   u8g2.clearBuffer();
+
+  char buffer_mac[32];
+  snprintf(buffer_mac, sizeof(buffer_mac), "%02X:%02X:%02X:%02X:%02X:%02X", 
+            macAddress[0], macAddress[1], macAddress[2],
+            macAddress[3], macAddress[4], macAddress[5]);
+
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 6, "A0:B1:C2:D3:E4:F5");
+  u8g2.drawStr(0, 6, buffer_mac);
   u8g2.setFont(u8g2_font_6x12_tr);
   u8g2.drawStr(20, 27, "Requesting id...");
 
   unsigned long elapsed = (millis() - statusStartTime) / 1000;
   
-  char buffer[32];
+  char buffer_time[32];
   u8g2.setFont(u8g2_font_6x10_tr);
-  sprintf(buffer, "Elapsed Time: %lus", elapsed);
-  u8g2.drawStr(15, 40, buffer);
+  sprintf(buffer_time, "Elapsed Time: %lus", elapsed);
+  u8g2.drawStr(15, 40, buffer_time);
 
   u8g2.sendBuffer();
 }
@@ -435,8 +449,13 @@ void screen_draw_configuration() {
     }
   }
 
+  char buffer_footer[64];
+  snprintf(buffer_footer, sizeof(buffer_footer), "SM-%d %02X:%02X:%02X:%02X:%02X:%02X",canbus.getDeviceId(),
+           macAddress[0], macAddress[1], macAddress[2],
+           macAddress[3], macAddress[4], macAddress[5]);
+
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 63, "SM-XX          A0:B1:C2:D3:E4:F5");
+  u8g2.drawStr(0, 63, "");
 
   u8g2.sendBuffer();
 
@@ -444,10 +463,16 @@ void screen_draw_configuration() {
 
 void screen_draw_main_temperature() {
   u8g2.clearBuffer();
+
+  char buffer_temperature[32];
+  snprintf(buffer_temperature, sizeof(buffer_temperature), "Humidity: %.2f%%", DHT_Humidity);
+  char buffer_humidity[32];
+  snprintf(buffer_humidity, sizeof(buffer_humidity), "Temperature: %.2fC", DHT_Temperature);
+
   u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(0, 10, "Temperature");
+  u8g2.drawStr(0, 10, buffer_humidity);
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 20, "Humidity: ");
+  u8g2.drawStr(0, 20, buffer_temperature);
   u8g2.setFont(u8g2_font_6x12_tr);
   u8g2.setCursor(60, 20);
   u8g2.print(DHT_Humidity);
