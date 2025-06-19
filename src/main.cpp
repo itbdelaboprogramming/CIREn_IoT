@@ -603,16 +603,6 @@ void screen_draw_main_vibration() {
   u8g2.sendBuffer();
 }
 
-void screen_draw_main_extreme_temperature() {
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(0, 10, "Extreme Temperature");
-  u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 20, "No data available");
-
-  u8g2.sendBuffer();
-}
-
 void screen_draw_main_environment() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_6x12_tr);
