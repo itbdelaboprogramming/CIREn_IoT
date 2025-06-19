@@ -11,6 +11,7 @@
 #include <DHT.h>
 #include <U8g2lib.h>
 #include <Adafruit_NeoPixel.h>
+#include <max6675.h>
 #include <drivers/canbus/Canbus.h>
 
 /*
@@ -39,6 +40,18 @@ const unsigned int SCREEN_UPDATE_INTERVAL = 200;
 #define BTN_UP     25
 #define LED_PIN    16
 
+#define CANBUS_SPI_SCK_PIN SPI_SCK_PIN
+#define CANBUS_SPI_MOSI_PIN SPI_MOSI_PIN
+#define CANBUS_SPI_MISO_PIN SPI_MISO_PIN
+#define CANBUS_SPI_CS_PIN SPI_CS_PIN
+#define CANBUS_INT_PIN GPIO_PIN6
+
+#define MAX6675_SPI_SCK_PIN GPIO_PIN14
+#define MAX6675_SPI_MOSI_PIN GPIO_PIN13
+#define MAX6675_SPI_MISO_PIN GPIO_PIN12
+#define MAX6675_SPI_CS_PIN GPIO_PIN15
+
+#define DHT_DATA_PIN GPIO_PIN33 
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
 
@@ -74,9 +87,9 @@ StateMainMenu mainMenuState;
 spi_device_handle_t spiHandle;
 MCP2515 mcp2515(&spiHandle); 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-Canbus canbus(SPI_SCK_PIN, SPI_MOSI_PIN, SPI_MISO_PIN, SPI_CS_PIN, GPIO_PIN6, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
-DHT dht(GPIO_PIN33, DHT22); // Pin for DHT sensor
-
+Canbus canbus(CANBUS_SPI_SCK_PIN, CANBUS_SPI_MOSI_PIN, CANBUS_SPI_MISO_PIN, CANBUS_SPI_CS_PIN, CANBUS_INT_PIN, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
+DHT dht(DHT_DATA_PIN, DHT22); // Pin for DHT sensor
+MAX6675 max6675(MAX6675_SPI_SCK_PIN, MAX6675_SPI_CS_PIN, MAX6675_SPI_MISO_PIN);
 
 #define NUMPIXELS   1
 Adafruit_NeoPixel pixels(NUMPIXELS, LED_PIN, NEO_GRB + NEO_KHZ800);
@@ -102,6 +115,7 @@ bool configState = false;
 
 float DHT_Humidity = 0.0;
 float DHT_Temperature = 0.0;
+float MAX6675_Temperature = 0.0;
 
 bool isConfigured = false;
 uint32_t statusStartTime = 0;
@@ -287,6 +301,13 @@ void update_sensor() {
 
     LOGI(TAG_MAIN, "Humidity: %.2f%%, Temperature: %.2f°C", DHT_Humidity, DHT_Temperature);
 
+    MAX6675_Temperature = max6675.readCelsius();
+    ret = isnan(MAX6675_Temperature);
+    if (ret) {
+      LOGE(TAG_MAIN, "Failed to read temperature from MAX6675 sensor.");
+      return;
+    }
+
   }
 
 }
@@ -304,6 +325,12 @@ void can_send_sensor_data() {
     canbus.setMessageFloat(DHT_Temperature);
     canbus.send();
     LOGI(TAG_MAIN, "Temperature sent: %.2f°C", DHT_Temperature);
+
+    canbus.setExtendedId(canbus.getDeviceId(), 2, 0);
+    canbus.setMessageFloat(MAX6675_Temperature);
+    canbus.send();
+    LOGI(TAG_MAIN, "MAX6675 Temperature sent: %.2f°C", MAX6675_Temperature);
+    
   }
 }
 
