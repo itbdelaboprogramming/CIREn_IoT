@@ -35,7 +35,7 @@ const unsigned int SCREEN_UPDATE_INTERVAL = 200;
 
 // --- Button Pins ---
 #define BTN_SELECT 32
-#define BTN_DOWN   33
+#define BTN_DOWN   35
 #define BTN_UP     25
 #define LED_PIN    18
 
@@ -210,6 +210,7 @@ void state_introduction() {
 }
 
 void state_configuration() {
+  button_handle_input();
 
   if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL) {
     screen_draw_configuration();
@@ -217,7 +218,7 @@ void state_configuration() {
   }
 
   can_send_heartbeat();
-  programState = StateMachine::STATE_MAIN; // Transition to next state
+  // programState = StateMachine::STATE_MAIN; // Transition to next state
 }
 
 void state_main() {
@@ -361,7 +362,7 @@ void button_next_page() {
       programState = StateMachine::STATE_MAIN;
       led_set_color(255, 255, 0); // Green for configuration
     } else {
-      programState = StateMachine::STATE_CONFIGURATION;
+      programState = StateMachine::STATE_REQUEST_ID;
       led_set_color(0, 255, 0); // Red for main
     }
 
