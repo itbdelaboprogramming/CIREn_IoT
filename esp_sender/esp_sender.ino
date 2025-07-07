@@ -1,38 +1,21 @@
 #include <CAN.h>
 
-#define TX_GPIO_NUM   5
-#define RX_GPIO_NUM   4
-
 void setup() {
-  Serial.begin (115200);
-  while (!Serial);
-  delay (1000);
+  Serial.begin(115200);
+  delay(1000);
 
-  Serial.println ("CAN Sender");
-
-  // Set the pins
-  CAN.setPins (RX_GPIO_NUM, TX_GPIO_NUM);
-
-  // start the CAN bus at 500 kbps
   if (!CAN.begin(500E3)) {
-    Serial.println("Starting CAN failed!");
+    Serial.println("CAN init failed");
     while (1);
   }
+
+  Serial.println("CAN Sender Ready");
 }
 
 void loop() {
-  // send packet: id is 11 bits, packet can contain up to 8 bytes of data
-  Serial.print("Sending packet ... ");
-
-  CAN.beginPacket(0x1);
-  CAN.write('h');
-  CAN.write('e');
-  CAN.write('l');
-  CAN.write('l');
-  CAN.write('o');
+  CAN.beginPacket(0x123);  // CAN ID
+  CAN.write('H');
+  CAN.write('i');
   CAN.endPacket();
-
-  Serial.println("done");
-
   delay(1000);
 }
