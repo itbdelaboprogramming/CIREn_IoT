@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IoT GPS Dashboard</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      crossorigin=""
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>📍 CIREN Dashboard 📍</header>
+    <div class="container">
+      <div class="sidebar">
+        <div class="time-container">
+          <div class="label">⏰ Current Time</div>
+          <div class="value" id="time">--:--:--</div>
+        </div>
+
+        <div class="sensor-module-container">
+          <div class="label">🧩 Sensor Modules Detected</div>
+
+          <div class="value" id="sensor-count">--</div>
+        </div>
+
+        <div class="module-list-container">
+          <div class="label">🔢 Available Modules</div>
+          <div class="value" id="module-list">Loading...</div>
+        </div>
+      </div>
+
+      <div class="map-area">
+        <div id="map"></div>
+      </div>
+    </div>
+
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      crossorigin=""
+    ></script>
+
+    <script src="./index.js"></script>
+  </body>
+</html>
