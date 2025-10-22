@@ -54,3 +54,4 @@ The project is organized to support modular sensor integration and maintainabili
 - **Modular Drivers**: Each sensor driver is organized in its own subfolder within `src/drivers/`, containing `.cpp` and `.h` files to allow easy reuse and extension.
 - **Pinout Management**: The `include/pinout/` folder provides board-specific pin mappings, allowing portability across different development boards.
 - **Main Logic**: The `main.cpp` file initializes and reads data from the sensors via the corresponding driver classes.
+![alt text](image.png)

@@ -1,7 +1,6 @@
 #include <Arduino.h>
 
 #include <WiFi.h>
-#include <esp_wifi.h>
 
 #include <pinout/devkitc.h>
 #include <state_machine.h>
@@ -12,7 +11,7 @@
 #include <U8g2lib.h>
 #include <Adafruit_NeoPixel.h>
 #include <max6675.h>
-#include <drivers/canbus/Canbus.h>
+#include <DFRobot_BNO055.h>
 
 /*
   ============================
@@ -27,12 +26,19 @@
 */
 
 // [1] ========================= CONSTANTS =========================
+
+// ===== DEBUG MODE CONFIGURATION =====
+// Set to true to enable full debug logging
+// Set to false to only print current menu data
+#define DEBUG_MODE false
+// ====================================
+
 // Timing intervals (in milliseconds)
 const unsigned int PRINT_INTERVAL = 1000;
 const unsigned int BLINK_INTERVAL = 500;
 const unsigned int SENSOR_INTERVAL = 1000;
-const unsigned int CAN_HEARTBEAT = 100;
 const unsigned int SCREEN_UPDATE_INTERVAL = 200;
+const unsigned int DATA_PRINT_INTERVAL = 1000;
 
 // --- Button Pins ---
 #define BTN_SELECT 32
@@ -40,18 +46,15 @@ const unsigned int SCREEN_UPDATE_INTERVAL = 200;
 #define BTN_UP     25
 #define LED_PIN    16
 
-#define CANBUS_SPI_SCK_PIN SPI_SCK_PIN
-#define CANBUS_SPI_MOSI_PIN SPI_MOSI_PIN
-#define CANBUS_SPI_MISO_PIN SPI_MISO_PIN
-#define CANBUS_SPI_CS_PIN SPI_CS_PIN
-#define CANBUS_INT_PIN GPIO_PIN6
-
 #define MAX6675_SPI_SCK_PIN GPIO_PIN14
 #define MAX6675_SPI_MOSI_PIN GPIO_PIN13
 #define MAX6675_SPI_MISO_PIN GPIO_PIN12
 #define MAX6675_SPI_CS_PIN GPIO_PIN15
 
 #define DHT_DATA_PIN GPIO_PIN33 
+
+typedef DFRobot_BNO055_IIC    BNO;
+
 // [2] ============== FUNCTION DECLARATIONS ==============
 void hardware_init();
 
@@ -71,23 +74,19 @@ void screen_draw_main_environment();
 void screen_draw_main_settings();
 void screen_draw_main_reset();
 
-void can_send_heartbeat();
-void can_send_sensor_data();
-
 void led_set_color(uint8_t r, uint8_t g, uint8_t b); 
 void update_sensor();
+void print_current_menu_data();
 
 void button_handle_input();
 void button_next_page();
+
 // [3] ============== GLOBAL VARIABLES ==============
 
 // State machine object
 StateMachine programState;
 StateMainMenu mainMenuState;
-spi_device_handle_t spiHandle;
-MCP2515 mcp2515(&spiHandle); 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
-Canbus canbus(CANBUS_SPI_SCK_PIN, CANBUS_SPI_MOSI_PIN, CANBUS_SPI_MISO_PIN, CANBUS_SPI_CS_PIN, CANBUS_INT_PIN, spiHandle, mcp2515); // SCK, MOSI, MISO, CS, INT
 DHT dht(DHT_DATA_PIN, DHT22); // Pin for DHT sensor
 MAX6675 max6675(MAX6675_SPI_SCK_PIN, MAX6675_SPI_CS_PIN, MAX6675_SPI_MISO_PIN);
 
@@ -99,15 +98,17 @@ esp_err_t ret;
 // Logger TAG
 const char *TAG_SETUP = "SETUP";
 const char *TAG_MAIN = "MAIN_STATE";
-const char *TAG_CAN = "CAN_STATE";
+
+BNO   bno(&Wire, 0x28);
+BNO::sEulAnalog_t sEul;
+BNO::sAxisAnalog_t sAcc;
 
 // Millis timestamp holders
 unsigned long millisPrint = 0;
 unsigned long millisLed = 0;
-unsigned long millisCAN = 0;
 unsigned long millisSensor = 0;
-unsigned long millisSendSensorData = 0;
 unsigned long millisScreenUpdate = 0;
+unsigned long millisDataPrint = 0;
 
 // Onboard LED state (HIGH = ON, LOW = OFF)
 bool ledState = LOW;
@@ -128,7 +129,7 @@ uint8_t macAddress[6];
 
 // --- Menu State ---
 const char* menuItems[6] = {
-  "Temp & Humidity", "Vibration", "Extreme Temperature",
+  "Temp & Humidity", "Acceleration", "Extreme Temperature",
   "Enviroment", "Settings", "Reset"
 };
 int selectedMenu = 0;
@@ -139,38 +140,46 @@ char macStr[32]; // Buffer for MAC address string
 // [4] ========================= SETUP =========================
 void setup() {
 
-  LOGI(TAG_SETUP, "Starting setup...");
+  Serial.begin(115200);
+  
+  if (DEBUG_MODE) {
+    LOGI(TAG_SETUP, "Starting setup...");
+  }
+  
   hardware_init();
-  LOGI(TAG_SETUP, "Hardware initialized.");
-
-  canbus.init();
-
+  
+  if (DEBUG_MODE) {
+    LOGI(TAG_SETUP, "Hardware initialized.");
+  }
+  
   programState = StateMachine::STATE_INTRO; 
 }
 
 // [5] ========================= LOOP =========================
 void loop() {
-  
   switch (programState) {
     case StateMachine::STATE_INTRO:
-      LOGI(TAG_MAIN, "State: Intro");
+      if (DEBUG_MODE) {
+        LOGI(TAG_MAIN, "State: Intro");
+      }
       state_introduction();
       break;
     case StateMachine::STATE_REQUEST_ID:
-      LOGI(TAG_MAIN, "State: Request ID");
+      if (DEBUG_MODE) {
+        LOGI(TAG_MAIN, "State: Request ID");
+      }
       state_request_id();
       break;
     case StateMachine::STATE_CONFIGURATION:
-      LOGI(TAG_MAIN, "State: Configuration");
+      if (DEBUG_MODE) {
+        LOGI(TAG_MAIN, "State: Configuration");
+      }
       state_configuration();
       break;
     case StateMachine::STATE_MAIN:
-      LOGI(TAG_MAIN, "State: Main");
       state_main();
       break;
   };
-
-
 }
 
 // [6] ============== FUNCTION DEFINITIONS ==============
@@ -178,39 +187,22 @@ void loop() {
 void state_request_id() {
   button_handle_input();
 
-  ret = esp_wifi_get_mac(WIFI_IF_STA, macAddress);
+  ret = esp_read_mac(macAddress, ESP_MAC_WIFI_STA);
   if (ret != ESP_OK) {
-    LOGE(TAG_CAN, "Error getting MAC address: %s", esp_err_to_name(ret));
+    if (DEBUG_MODE) {
+      LOGE(TAG_MAIN, "Error getting MAC address: %s", esp_err_to_name(ret));
+    }
   } 
   
   snprintf(macStr, sizeof(macStr), "MAC:\n%02X:%02X:%02X:%02X:%02X:%02X", 
   macAddress[0], macAddress[1], macAddress[2],
   macAddress[3], macAddress[4], macAddress[5]);
-  LOGI(TAG_CAN, "MAC address: %s", macStr);
+  
+  if (DEBUG_MODE) {
+    LOGI(TAG_MAIN, "MAC address: %s", macStr);
+  }
   
   screen_draw_request_id();
-  
-  ret = canbus.requestId(macAddress[0], macAddress[1], macAddress[2], macAddress[3], macAddress[4], macAddress[5]);
-  if (ret != ESP_OK) {
-    LOGE(TAG_CAN, "Error requesting ID: %s", esp_err_to_name(ret));
-    return;
-  }
-
-  LOGI(TAG_CAN, "ID request successful.");
-  LOGI(TAG_CAN, "Device ID: %d", canbus.getDeviceId());
-
-  ret = canbus.filterMessageByDeviceId(canbus.getDeviceId());
-  if (ret != ESP_OK) {
-    LOGE(TAG_CAN, "Error setting filter for ID: %s", esp_err_to_name(ret));
-    return;
-  }
-
-  char buf[32];  // Make sure the buffer is large enough
-  snprintf(buf, sizeof(buf), "SUCCESS! ID:%d", canbus.getDeviceId());
-
-  u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(20, 60, buf);
-  u8g2.sendBuffer();
 
   delay(5000); 
 
@@ -224,11 +216,12 @@ void state_introduction() {
     screen_draw_intro();
   }
 
-  if(millis() - millisPrint >= PRINT_INTERVAL) {
-    millisPrint = millis();
-    LOGI(TAG_MAIN, "In introduction state.");
+  if (DEBUG_MODE) {
+    if(millis() - millisPrint >= PRINT_INTERVAL) {
+      millisPrint = millis();
+      LOGI(TAG_MAIN, "In introduction state.");
+    }
   }
-
 }
 
 void state_configuration() {
@@ -238,9 +231,6 @@ void state_configuration() {
     screen_draw_configuration();
     millisScreenUpdate = millis();
   }
-
-  can_send_heartbeat();
-  // programState = StateMachine::STATE_MAIN; // Transition to next state
 }
 
 void state_main() {
@@ -249,115 +239,144 @@ void state_main() {
   if(millis() - millisScreenUpdate >= SCREEN_UPDATE_INTERVAL) {
     switch (mainMenuState) {
       case StateMainMenu::STATE_TEMP_HUMIDITY:
-        LOGI(TAG_MAIN,"[MENU_1]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_1]");
+        }
         screen_draw_main_temperature();
         break;
       case StateMainMenu::STATE_VIBRATION:
-        LOGI(TAG_MAIN,"[MENU_2]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_2]");
+        }
         screen_draw_main_vibration();
         break;
       case StateMainMenu::STATE_EXTREME_TEMP:
-        LOGI(TAG_MAIN,"[MENU_3]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_3]");
+        }
         screen_draw_main_extreme_temperature();
         break;
       case StateMainMenu::STATE_ENVIRONMENT:
-        LOGI(TAG_MAIN,"[MENU_4]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_4]");
+        }
         screen_draw_main_environment();
         break;
       case StateMainMenu::STATE_SETTINGS:
-        LOGI(TAG_MAIN,"[MENU_5]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_5]");
+        }
         screen_draw_main_settings();
         break;
       case StateMainMenu::STATE_RESET:
-        LOGI(TAG_MAIN,"[MENU_6]");
+        if (DEBUG_MODE) {
+          LOGI(TAG_MAIN,"[MENU_6]");
+        }
         screen_draw_main_reset();
         break;
     }
     millisScreenUpdate = millis();
   }
 
-  can_send_heartbeat();
-  can_send_sensor_data();
-  
   update_sensor();
-}
-
-void can_send_heartbeat() {
-  if(millis() - millisCAN >= CAN_HEARTBEAT) {
-    millisCAN = millis();
-    canbus.setMessageheartbeat(); 
-    canbus.send(); 
+  
+  // Print current menu data based on mode
+  if (!DEBUG_MODE) {
+    print_current_menu_data();
   }
 }
 
 void update_sensor() {
-
-  // Update DHT sensor
   if(millis() - millisSensor >= SENSOR_INTERVAL) {
     millisSensor = millis();
 
     DHT_Humidity = dht.readHumidity();
     ret = isnan(DHT_Humidity);
     if (ret) {
-      LOGE(TAG_MAIN, "Failed to read humidity from DHT sensor.");
+      if (DEBUG_MODE) {
+        LOGE(TAG_MAIN, "Failed to read humidity from DHT sensor.");
+      }
       return;
     }
 
     DHT_Temperature = dht.readTemperature();
     ret = isnan(DHT_Temperature);
     if (ret) {
-      LOGE(TAG_MAIN, "Failed to read temperature from DHT sensor.");
+      if (DEBUG_MODE) {
+        LOGE(TAG_MAIN, "Failed to read temperature from DHT sensor.");
+      }
       return;
     }
-
-    LOGI(TAG_MAIN, "Humidity: %.2f%%, Temperature: %.2f°C", DHT_Humidity, DHT_Temperature);
 
     MAX6675_Temperature = max6675.readCelsius();
     ret = isnan(MAX6675_Temperature);
     if (ret) {
-      LOGE(TAG_MAIN, "Failed to read temperature from MAX6675 sensor.");
+      if (DEBUG_MODE) {
+        LOGE(TAG_MAIN, "Failed to read temperature from MAX6675 sensor.");
+      }
       return;
     }
 
-  }
+    sEul = bno.getEul();
+    sAcc = bno.getAxis(BNO::eAxisAcc);
 
+    if (DEBUG_MODE) {
+      LOGI(TAG_MAIN, "Humidity: %.2f%%, Temperature: %.2f°C, MAX6675: %.2f°C", 
+           DHT_Humidity, DHT_Temperature, MAX6675_Temperature);
+    }
+  }
 }
 
-void can_send_sensor_data() {
-  if(millis() - millisSendSensorData >= SENSOR_INTERVAL) {
-    millisSendSensorData = millis();
-
-    canbus.setExtendedId(canbus.getDeviceId(), 1, 0);
-    canbus.setMessageFloat(DHT_Humidity);
-    canbus.send();
-    LOGI(TAG_MAIN, "Humidity sent: %.2f%%", DHT_Humidity);
-
-    canbus.setExtendedId(canbus.getDeviceId(), 1, 1);
-    canbus.setMessageFloat(DHT_Temperature);
-    canbus.send();
-    LOGI(TAG_MAIN, "Temperature sent: %.2f°C", DHT_Temperature);
-
-    canbus.setExtendedId(canbus.getDeviceId(), 2, 0);
-    canbus.setMessageFloat(MAX6675_Temperature);
-    canbus.send();
-    LOGI(TAG_MAIN, "MAX6675 Temperature sent: %.2f°C", MAX6675_Temperature);
-
+void print_current_menu_data() {
+  if(millis() - millisDataPrint >= DATA_PRINT_INTERVAL) {
+    millisDataPrint = millis();
+    
+    switch (mainMenuState) {
+      case StateMainMenu::STATE_TEMP_HUMIDITY:
+        Serial.print("Temp: ");
+        Serial.print(DHT_Temperature);
+        Serial.print("°C, Humidity: ");
+        Serial.print(DHT_Humidity);
+        Serial.println("%");
+        break;
+        
+      case StateMainMenu::STATE_VIBRATION:
+        Serial.print("Ax: ");
+        Serial.print(sAcc.x);
+        Serial.print(", Ay: ");
+        Serial.print(sAcc.y);
+        Serial.print(", Az: ");
+        Serial.println(sAcc.z);
+        break;
+        
+      case StateMainMenu::STATE_EXTREME_TEMP:
+        Serial.print("Extreme Temp: ");
+        Serial.print(MAX6675_Temperature);
+        Serial.println("°C");
+        break;
+        
+      case StateMainMenu::STATE_ENVIRONMENT:
+        Serial.println("Environment: No data available");
+        break;
+        
+      case StateMainMenu::STATE_SETTINGS:
+        Serial.println("Settings: No data available");
+        break;
+        
+      case StateMainMenu::STATE_RESET:
+        Serial.println("Reset: Standby");
+        break;
+    }
   }
 }
 
 // Initialize hardware
 void hardware_init() {
-  Serial.begin(115200);
-
-  WiFi.mode(WIFI_STA);
-  // WiFi.begin();
-
   // Setup LED
   pinMode(LED_BUILTIN, OUTPUT);
 
   // Setup I2C & display
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);  
-  // display.begin(SSD1306_SWITCHCAPVCC, 0x3C, true); // addr, reset
 
   // Setup DHT sensor
   dht.begin();
@@ -365,20 +384,27 @@ void hardware_init() {
   // Setup for display
   u8g2.begin();
 
+  // Setup BNO055
+  bno.reset();
+  while(bno.begin() != BNO::eStatusOK) {
+    if (DEBUG_MODE) {
+      Serial.println("bno begin failed");
+    }
+    delay(2000);
+  }
+
   // Setup the navigation buttons
   pinMode(BTN_SELECT, INPUT_PULLUP);
   pinMode(BTN_DOWN, INPUT_PULLUP);
   pinMode(BTN_UP, INPUT_PULLUP);
+
+  pixels.begin();
 }
 
 void button_handle_input() {
   bool selectPressed = !digitalRead(BTN_SELECT);
   bool upPressed = !digitalRead(BTN_UP);
   bool downPressed = !digitalRead(BTN_DOWN);
-
-  LOGI(TAG_MAIN, "Button states - Select: %d, Up: %d, Down: %d", selectPressed, upPressed, downPressed);
-
-  unsigned long now = millis();
 
   if (selectPressed && lastStateSelect == false) {
     if(programState == StateMachine::STATE_CONFIGURATION) {
@@ -414,16 +440,14 @@ void button_handle_input() {
 }
 
 void button_next_page() {
-
   if (programState == StateMachine::STATE_INTRO) {
     if(isConfigured){
       programState = StateMachine::STATE_MAIN;
-      led_set_color(255, 255, 0); // Green for configuration
+      led_set_color(255, 255, 0); // Yellow for configuration
     } else {
       programState = StateMachine::STATE_REQUEST_ID;
-      led_set_color(0, 255, 0); // Red for main
+      led_set_color(0, 255, 0); // Green for main
     }
-
     statusStartTime = millis();
 
   } else if (programState == StateMachine::STATE_CONFIGURATION) {
@@ -431,10 +455,9 @@ void button_next_page() {
     programState = StateMachine::STATE_MAIN;
 
   } else if (programState == StateMachine::STATE_MAIN) {
-    led_set_color(0, 0, 255); // Back to blue
+    led_set_color(0, 0, 255); // Blue
     programState = StateMachine::STATE_INTRO;
   }
-
 }
 
 void led_set_color(uint8_t r, uint8_t g, uint8_t b) {
@@ -449,15 +472,20 @@ void screen_draw_intro() {
   u8g2.drawStr(6, 25, "ITB de Labo");
   u8g2.setFont(u8g2_font_6x12_tr);
   u8g2.drawStr(20, 40, "Sensor Module");
+
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(16, 63, "Furqon - Nauval - Zaqi");
+  u8g2.drawStr(0, 55, "Standalone Mode");
+  
+  if (DEBUG_MODE) {
+    u8g2.drawStr(0, 63, "Debug: ON");
+  } else {
+    u8g2.drawStr(0, 63, "Debug: OFF");
+  }
+
   u8g2.sendBuffer();
 }
 
 void screen_draw_request_id() {
-
-  
-
   u8g2.clearBuffer();
 
   char buffer_mac[32];
@@ -468,14 +496,17 @@ void screen_draw_request_id() {
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 6, buffer_mac);
   u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(20, 27, "Requesting id...");
+  u8g2.drawStr(20, 20, "Device ID");
 
   unsigned long elapsed = (millis() - statusStartTime) / 1000;
   
   char buffer_time[32];
   u8g2.setFont(u8g2_font_6x10_tr);
-  sprintf(buffer_time, "Elapsed Time: %lus", elapsed);
-  u8g2.drawStr(15, 40, buffer_time);
+  sprintf(buffer_time, "Elapsed: %lus", elapsed);
+  u8g2.drawStr(15, 35, buffer_time);
+
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 63, "Status: Ready");
 
   u8g2.sendBuffer();
 }
@@ -496,57 +527,64 @@ void screen_draw_configuration() {
       u8g2.setDrawColor(0);
       u8g2.drawStr(5, y, menuItems[index]);
       u8g2.setDrawColor(1);
-
     } else {
       u8g2.drawStr(5, y, menuItems[index]);
     }
   }
 
   char buffer_footer[64];
-  snprintf(buffer_footer, sizeof(buffer_footer), "SM-%d %02X:%02X:%02X:%02X:%02X:%02X",canbus.getDeviceId(),
+  snprintf(buffer_footer, sizeof(buffer_footer), 
+           "SM-%d %02X:%02X:%02X:%02X:%02X:%02X", 1,
            macAddress[0], macAddress[1], macAddress[2],
            macAddress[3], macAddress[4], macAddress[5]);
 
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 63, "");
+  u8g2.drawStr(0, 55, buffer_footer);
+  u8g2.drawStr(0, 63, "Status: OK");
 
   u8g2.sendBuffer();
-
 }
 
 void screen_draw_main_temperature() {
   u8g2.clearBuffer();
-
+  u8g2.setFont(u8g2_font_6x12_tr);
   char buffer_temperature[32];
   snprintf(buffer_temperature, sizeof(buffer_temperature), "Humidity: %.2f%%", DHT_Humidity);
   char buffer_humidity[32];
   snprintf(buffer_humidity, sizeof(buffer_humidity), "Temperature: %.2fC", DHT_Temperature);
 
-  u8g2.setFont(u8g2_font_6x12_tr);
+
   u8g2.drawStr(0, 10, buffer_humidity);
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 20, buffer_temperature);
-  u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.setCursor(60, 20);
-  u8g2.print(DHT_Humidity);
-  u8g2.print("%");
+
+  char buffer_mac[32];
+  snprintf(buffer_mac, sizeof(buffer_mac), "Device: %02X:%02X:%02X",
+           macAddress[3], macAddress[4], macAddress[5]);
+  u8g2.drawStr(0, 30, buffer_mac);
 
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 30, "Temperature: ");
-  u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.setCursor(80, 30);
-  u8g2.print(DHT_Temperature);
-  u8g2.print("C");
+  u8g2.drawStr(0, 63, "Status: Active");
 
   u8g2.sendBuffer();
 }
 
 void screen_draw_main_vibration() {
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_6x12_tr);
-  u8g2.drawStr(0, 10, "Vibration");
+
+  char buffer_x_axis[32];
+  snprintf(buffer_x_axis, sizeof(buffer_x_axis), "X-Axis: %.2f", sAcc.x);
+  char buffer_y_axis[32];
+  snprintf(buffer_y_axis, sizeof(buffer_y_axis), "Y-Axis: %.2f", sAcc.y);
+  char buffer_z_axis[32];
+  snprintf(buffer_z_axis, sizeof(buffer_z_axis), "Z-Axis: %.2f", sAcc.z);
+
   u8g2.setFont(u8g2_font_4x6_tf);
-  u8g2.drawStr(0, 20, "No data available");
+  u8g2.drawStr(0, 10, buffer_x_axis);
+  u8g2.drawStr(0, 20, buffer_y_axis);
+  u8g2.drawStr(0, 30, buffer_z_axis);
+
+  u8g2.drawStr(0, 63, "Status: Monitoring");
 
   u8g2.sendBuffer();
 }
@@ -558,6 +596,8 @@ void screen_draw_main_environment() {
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 20, "No data available");
 
+  u8g2.drawStr(0, 63, "Status: OK");
+
   u8g2.sendBuffer();
 }
 
@@ -568,6 +608,8 @@ void screen_draw_main_settings() {
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 20, "No settings available");
 
+  u8g2.drawStr(0, 63, "Status: OK");
+
   u8g2.sendBuffer();
 }
 
@@ -577,6 +619,8 @@ void screen_draw_main_reset() {
   u8g2.drawStr(0, 10, "Reset");
   u8g2.setFont(u8g2_font_4x6_tf);
   u8g2.drawStr(0, 20, "Press to reset device");
+
+  u8g2.drawStr(0, 63, "Status: Standby");
 
   u8g2.sendBuffer();
 }
@@ -589,6 +633,9 @@ void screen_draw_main_extreme_temperature() {
 
   u8g2.setFont(u8g2_font_6x12_tr);
   u8g2.drawStr(0, 10, buffer_extreme_temp);
+
+  u8g2.setFont(u8g2_font_4x6_tf);
+  u8g2.drawStr(0, 63, "Status: Monitoring");
 
   u8g2.sendBuffer();
 }
