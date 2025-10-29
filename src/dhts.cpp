@@ -1,0 +1,148 @@
+// #include <Arduino.h>
+// #include <WiFi.h>
+// #include <esp_now.h>
+// #include <DHT.h>
+// #include <pinout/devkitc.h>
+
+// // ===== CONFIGURATION =====
+// #define DEBUG_MODE true
+// #define DHT_DATA_PIN GPIO_PIN33
+// #define DHT_TYPE DHT22
+
+// // IMPORTANT: Replace with your receiver's MAC address
+// uint8_t receiverAddress[] = {0x40, 0x22, 0xD8, 0xE8, 0x8B, 0x88};
+
+// // Timing
+// const unsigned long SEND_INTERVAL = 2000; // Send data every 2 seconds
+// const unsigned long SENSOR_READ_INTERVAL = 1000;
+
+// // ESP-NOW Data Structure (must match receiver)
+// typedef struct {
+//   uint8_t sensorType; // 1=DHT, 2=BNO, 3=MAX6675
+//   float value1;       // Temperature
+//   float value2;       // Humidity
+//   float value3;       // Reserved
+//   unsigned long timestamp;
+// } SensorData;
+
+// // Global Variables
+// DHT dht(DHT_DATA_PIN, DHT_TYPE);
+// SensorData sensorData;
+// esp_now_peer_info_t peerInfo;
+// unsigned long lastSendTime = 0;
+// unsigned long lastReadTime = 0;
+// float temperature = 0.0;
+// float humidity = 0.0;
+
+// // Function Declarations
+// void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
+// void readSensor();
+// void sendData();
+
+// void setup() {
+//   Serial.begin(115200);
+  
+//   Serial.println("\n=== DHT Sensor Module ===");
+  
+//   // Initialize DHT sensor
+//   dht.begin();
+  
+//   // Set WiFi mode
+//   WiFi.mode(WIFI_STA);
+  
+//   // Get and print MAC address
+//   uint8_t mac[6];
+//   esp_read_mac(mac, ESP_MAC_WIFI_STA);
+//   Serial.printf("MAC Address: %02X:%02X:%02X:%02X:%02X:%02X\n",
+//                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  
+//   // Initialize ESP-NOW
+//   if (esp_now_init() != ESP_OK) {
+//     Serial.println("Error initializing ESP-NOW");
+//     return;
+//   }
+  
+//   // Register send callback
+//   esp_now_register_send_cb(OnDataSent);
+  
+//   // Register peer (receiver)
+//   memcpy(peerInfo.peer_addr, receiverAddress, 6);
+//   peerInfo.channel = 0;
+//   peerInfo.encrypt = false;
+  
+//   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+//     Serial.println("Failed to add peer");
+//     return;
+//   }
+  
+//   Serial.println("ESP-NOW initialized successfully");
+//   Serial.println("NOTE: Update receiverAddress[] with your receiver's MAC!");
+  
+//   // Initialize sensor data structure
+//   sensorData.sensorType = 1; // DHT sensor type
+// }
+
+// void loop() {
+//   unsigned long currentMillis = millis();
+  
+//   // Read sensor at defined interval
+//   if (currentMillis - lastReadTime >= SENSOR_READ_INTERVAL) {
+//     lastReadTime = currentMillis;
+//     readSensor();
+//   }
+  
+//   // Send data at defined interval
+//   if (currentMillis - lastSendTime >= SEND_INTERVAL) {
+//     lastSendTime = currentMillis;
+//     sendData();
+//   }
+// }
+
+// void readSensor() {
+//   // Read humidity
+//   humidity = dht.readHumidity();
+//   if (isnan(humidity)) {
+//     Serial.println("Failed to read humidity!");
+//     humidity = 0.0;
+//     return;
+//   }
+  
+//   // Read temperature
+//   temperature = dht.readTemperature();
+//   if (isnan(temperature)) {
+//     Serial.println("Failed to read temperature!");
+//     temperature = 0.0;
+//     return;
+//   }
+  
+//   if (DEBUG_MODE) {
+//     Serial.printf("DHT Read - Temp: %.2f°C, Humidity: %.2f%%\n", 
+//                   temperature, humidity);
+//   }
+// }
+
+// void sendData() {
+//   // Prepare data packet
+//   sensorData.value1 = temperature;
+//   sensorData.value2 = humidity;
+//   sensorData.value3 = 0.0; // Not used for DHT
+//   sensorData.timestamp = millis();
+  
+//   // Send data
+//   esp_err_t result = esp_now_send(receiverAddress, (uint8_t *)&sensorData, sizeof(sensorData));
+  
+//   if (result == ESP_OK) {
+//     if (DEBUG_MODE) {
+//       Serial.println("Data sent successfully");
+//     }
+//   } else {
+//     Serial.println("Error sending data");
+//   }
+// }
+
+// void OnDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+//   if (DEBUG_MODE) {
+//     Serial.print("Send Status: ");
+//     Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Fail");
+//   }
+// }
