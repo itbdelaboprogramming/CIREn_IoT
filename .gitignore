@@ -1,5 +1,8 @@
 .pio/
 .vscode/
+.venv
+*.py
+*.pyc
 # Prerequisites
 *.d
 
@@ -41,3 +44,4 @@
 
 # debug information files
 *.dwo
+*.md
