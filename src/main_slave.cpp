@@ -1,3 +1,30 @@
+#ifdef PRINT_MAC
+
+#include <Arduino.h>
+
+void setup() {
+    Serial.begin(115200);
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    Serial.print("Slave MAC: ");
+    Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n",
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
+
+void loop() {
+    static unsigned long last = 0;
+    if (millis() - last >= 5000) {
+        last = millis();
+        uint8_t mac[6];
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        Serial.print("Slave MAC: ");
+        Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X\n",
+                      mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    }
+}
+
+#elif defined(MAIN_PROGRAM)
+
 #include <Arduino.h>
 #include "drivers/ciren_comm/ciren_comm.h"
 
@@ -8,7 +35,8 @@
 ModbusMaster node;
 
 // Fill with master mac address
-uint8_t masterMac[] = {0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF};
+// D8:13:2A:F0:56:40
+uint8_t masterMac[] = {0xD8, 0x13, 0x2A, 0xF0, 0x56, 0x40};
 CIREnSlave slave(5);
 
 unsigned long lastReadTime = 0;
@@ -35,12 +63,12 @@ void setup() {
 
     Serial.println("Sensor initialized");
 
-    // if (slave.findMaster(masterMac) == ESP_OK) {
-    //     Serial.println("Connected to master");
-    //     slave.sendSlaveStatus();
-    // } else {
-    //     Serial.println("Failed to connect to master");
-    // }
+    if (slave.findMaster(masterMac) == ESP_OK) {
+        Serial.println("Connected to master");
+        slave.sendSlaveStatus();
+    } else {
+        Serial.println("Failed to connect to master");
+    }
 }
 
 void loop() {
@@ -56,7 +84,7 @@ void loop() {
             Serial.println(temp);
 
             uint16_t tempData = (uint16_t)(temp * 10);
-            // slave.sendTemperature(tempData);
+            slave.sendTemperature(tempData);
         }
 
         // Read Vibration
@@ -66,7 +94,9 @@ void loop() {
             Serial.println(vib);
 
             uint16_t vibData = (uint16_t)(vib * 10);
-            // slave.sendVibration(vibData);
+            slave.sendVibration(vibData);
         }
     }
 }
+
+#endif
