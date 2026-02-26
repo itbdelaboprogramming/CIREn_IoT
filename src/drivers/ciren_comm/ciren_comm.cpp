@@ -139,6 +139,42 @@ void CIREnMaster::processMessage(const CIREnMessage* message) {
         case METRIC_TYPE_FREQUENCY:
             Serial.printf("[ID %d] Freq:         %lu Hz\n", message->id, message->data.frequency_data);
             break;
+        case METRIC_TYPE_VELOCITY_X:
+            Serial.printf("[ID %d] Velocity X:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_VELOCITY_Y:
+            Serial.printf("[ID %d] Velocity Y:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_VELOCITY_Z:
+            Serial.printf("[ID %d] Velocity Z:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_DISPLACEMENT_X:
+            Serial.printf("[ID %d] Displace X:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_DISPLACEMENT_Y:
+            Serial.printf("[ID %d] Displace Y:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_DISPLACEMENT_Z:
+            Serial.printf("[ID %d] Displace Z:   %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_ACCELERATION_X:
+            Serial.printf("[ID %d] Accel X:      %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_ACCELERATION_Y:
+            Serial.printf("[ID %d] Accel Y:      %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_ACCELERATION_Z:
+            Serial.printf("[ID %d] Accel Z:      %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_FREQUENCY_X:
+            Serial.printf("[ID %d] Freq X:       %lu Hz\n", message->id, message->data.frequency_data);
+            break;
+        case METRIC_TYPE_FREQUENCY_Y:
+            Serial.printf("[ID %d] Freq Y:       %lu Hz\n", message->id, message->data.frequency_data);
+            break;
+        case METRIC_TYPE_FREQUENCY_Z:
+            Serial.printf("[ID %d] Freq Z:       %lu Hz\n", message->id, message->data.frequency_data);
+            break;
         default:
             Serial.printf("[ID %d] Metric=%d Data=%d\n", message->id, message->metric_type, message->data.sensor_data);
     }
@@ -285,6 +321,93 @@ esp_err_t CIREnSlave::sendFrequency(uint32_t freq) {
     if (result != ESP_OK) {
         LOGE("CIREN_SLAVE", "Send frequency failed");
     }
+    return result;
+}
+
+esp_err_t CIREnSlave::sendVelocityX(uint16_t vel) {
+    LOGI("CIREN_SLAVE", "Sending velocity X: %d", vel);
+    return sendMessage(METRIC_TYPE_VELOCITY_X, vel);
+}
+
+esp_err_t CIREnSlave::sendVelocityY(uint16_t vel) {
+    LOGI("CIREN_SLAVE", "Sending velocity Y: %d", vel);
+    return sendMessage(METRIC_TYPE_VELOCITY_Y, vel);
+}
+
+esp_err_t CIREnSlave::sendVelocityZ(uint16_t vel) {
+    LOGI("CIREN_SLAVE", "Sending velocity Z: %d", vel);
+    return sendMessage(METRIC_TYPE_VELOCITY_Z, vel);
+}
+
+esp_err_t CIREnSlave::sendDisplacementX(uint16_t disp) {
+    LOGI("CIREN_SLAVE", "Sending displacement X: %d", disp);
+    return sendMessage(METRIC_TYPE_DISPLACEMENT_X, disp);
+}
+
+esp_err_t CIREnSlave::sendDisplacementY(uint16_t disp) {
+    LOGI("CIREN_SLAVE", "Sending displacement Y: %d", disp);
+    return sendMessage(METRIC_TYPE_DISPLACEMENT_Y, disp);
+}
+
+esp_err_t CIREnSlave::sendDisplacementZ(uint16_t disp) {
+    LOGI("CIREN_SLAVE", "Sending displacement Z: %d", disp);
+    return sendMessage(METRIC_TYPE_DISPLACEMENT_Z, disp);
+}
+
+esp_err_t CIREnSlave::sendAccelerationX(uint16_t accel) {
+    LOGI("CIREN_SLAVE", "Sending acceleration X: %d", accel);
+    return sendMessage(METRIC_TYPE_ACCELERATION_X, accel);
+}
+
+esp_err_t CIREnSlave::sendAccelerationY(uint16_t accel) {
+    LOGI("CIREN_SLAVE", "Sending acceleration Y: %d", accel);
+    return sendMessage(METRIC_TYPE_ACCELERATION_Y, accel);
+}
+
+esp_err_t CIREnSlave::sendAccelerationZ(uint16_t accel) {
+    LOGI("CIREN_SLAVE", "Sending acceleration Z: %d", accel);
+    return sendMessage(METRIC_TYPE_ACCELERATION_Z, accel);
+}
+
+esp_err_t CIREnSlave::sendFrequencyX(uint32_t freq) {
+    if (!initialized || !masterPaired) {
+        LOGE("CIREN_SLAVE", "Not initialized or master not paired");
+        return ESP_FAIL;
+    }
+    CIREnMessage message;
+    message.id = deviceId;
+    message.metric_type = METRIC_TYPE_FREQUENCY_X;
+    message.data.frequency_data = freq;
+    esp_err_t result = esp_now_send(masterMac, (uint8_t*)&message, sizeof(CIREnMessage));
+    if (result != ESP_OK) LOGE("CIREN_SLAVE", "Send frequency X failed");
+    return result;
+}
+
+esp_err_t CIREnSlave::sendFrequencyY(uint32_t freq) {
+    if (!initialized || !masterPaired) {
+        LOGE("CIREN_SLAVE", "Not initialized or master not paired");
+        return ESP_FAIL;
+    }
+    CIREnMessage message;
+    message.id = deviceId;
+    message.metric_type = METRIC_TYPE_FREQUENCY_Y;
+    message.data.frequency_data = freq;
+    esp_err_t result = esp_now_send(masterMac, (uint8_t*)&message, sizeof(CIREnMessage));
+    if (result != ESP_OK) LOGE("CIREN_SLAVE", "Send frequency Y failed");
+    return result;
+}
+
+esp_err_t CIREnSlave::sendFrequencyZ(uint32_t freq) {
+    if (!initialized || !masterPaired) {
+        LOGE("CIREN_SLAVE", "Not initialized or master not paired");
+        return ESP_FAIL;
+    }
+    CIREnMessage message;
+    message.id = deviceId;
+    message.metric_type = METRIC_TYPE_FREQUENCY_Z;
+    message.data.frequency_data = freq;
+    esp_err_t result = esp_now_send(masterMac, (uint8_t*)&message, sizeof(CIREnMessage));
+    if (result != ESP_OK) LOGE("CIREN_SLAVE", "Send frequency Z failed");
     return result;
 }
 

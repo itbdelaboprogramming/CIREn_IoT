@@ -44,6 +44,21 @@ public:
     esp_err_t sendDisplacement(uint16_t disp);
     esp_err_t sendAcceleration(uint16_t accel);
     esp_err_t sendFrequency(uint32_t freq);
+
+    // Tri-axis send methods
+    esp_err_t sendVelocityX(uint16_t vel);
+    esp_err_t sendVelocityY(uint16_t vel);
+    esp_err_t sendVelocityZ(uint16_t vel);
+    esp_err_t sendDisplacementX(uint16_t disp);
+    esp_err_t sendDisplacementY(uint16_t disp);
+    esp_err_t sendDisplacementZ(uint16_t disp);
+    esp_err_t sendAccelerationX(uint16_t accel);
+    esp_err_t sendAccelerationY(uint16_t accel);
+    esp_err_t sendAccelerationZ(uint16_t accel);
+    esp_err_t sendFrequencyX(uint32_t freq);
+    esp_err_t sendFrequencyY(uint32_t freq);
+    esp_err_t sendFrequencyZ(uint32_t freq);
+
     esp_err_t sendSlaveStatus();
 
     static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
