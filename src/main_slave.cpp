@@ -77,24 +77,40 @@ void loop() {
     if (currentTime - lastReadTime >= READ_INTERVAL) {
         lastReadTime = currentTime;
 
-        // Read Temperature
+        // Temperature — reg 0x0000
         if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
             float temp = (float)node.getResponseBuffer(0);
-            Serial.print("Temperature: ");
-            Serial.println(temp);
-
-            uint16_t tempData = (uint16_t)(temp * 10);
-            slave.sendTemperature(tempData);
+            Serial.printf("Temperature: %.1f\n", temp);
+            slave.sendTemperature((uint16_t)(temp * 10));
         }
 
-        // Read Vibration
-        if (node.readHoldingRegisters(0x0003, 1) == ModbusMaster::ku8MBSuccess) {
-            float vib = (float)node.getResponseBuffer(0);
-            Serial.print("Vibration: ");
-            Serial.println(vib);
+        // Velocity — reg 0x0001
+        if (node.readHoldingRegisters(0x0001, 1) == ModbusMaster::ku8MBSuccess) {
+            float vel = (float)node.getResponseBuffer(0);
+            Serial.printf("Velocity: %.2f\n", vel);
+            slave.sendVelocity((uint16_t)(vel * 100));
+        }
 
-            uint16_t vibData = (uint16_t)(vib * 10);
-            slave.sendVibration(vibData);
+        // Displacement — reg 0x0002
+        if (node.readHoldingRegisters(0x0002, 1) == ModbusMaster::ku8MBSuccess) {
+            float disp = (float)node.getResponseBuffer(0);
+            Serial.printf("Displacement: %.2f\n", disp);
+            slave.sendDisplacement((uint16_t)(disp * 100));
+        }
+
+        // Acceleration — reg 0x0003
+        if (node.readHoldingRegisters(0x0003, 1) == ModbusMaster::ku8MBSuccess) {
+            float accel = (float)node.getResponseBuffer(0);
+            Serial.printf("Acceleration: %.2f\n", accel);
+            slave.sendAcceleration((uint16_t)(accel * 100));
+        }
+
+        // Vibration Frequency — reg 0x0022, 2 registers → 32-bit
+        if (node.readHoldingRegisters(0x0022, 2) == ModbusMaster::ku8MBSuccess) {
+            uint32_t freq = ((uint32_t)node.getResponseBuffer(0) << 16)
+                          |  (uint32_t)node.getResponseBuffer(1);
+            Serial.printf("Frequency: %lu\n", freq);
+            slave.sendFrequency(freq);
         }
     }
 }
