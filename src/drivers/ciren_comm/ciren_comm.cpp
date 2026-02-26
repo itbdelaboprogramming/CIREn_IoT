@@ -128,7 +128,7 @@ int CIREnMaster::findSlaveIndex(uint8_t* macAddress) {
 
 void CIREnMaster::processMessage(const CIREnMessage* message) {
     if (message->metric_type == METRIC_TYPE_SYSTEM) return;
-    if (messageCallback \!= nullptr) {
+    if (messageCallback != nullptr) {
         messageCallback(message);
         return;
     }
