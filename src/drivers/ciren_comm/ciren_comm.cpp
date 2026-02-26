@@ -122,11 +122,25 @@ int CIREnMaster::findSlaveIndex(uint8_t* macAddress) {
 }
 
 void CIREnMaster::processMessage(const CIREnMessage* message) {
-    if (message->metric_type != METRIC_TYPE_SYSTEM) {
-        Serial.printf("ID=%d Metric=%d Data=%d\n",
-                     message->id,
-                     message->metric_type,
-                     message->data.sensor_data);
+    if (message->metric_type == METRIC_TYPE_SYSTEM) return;
+    switch (message->metric_type) {
+        case METRIC_TYPE_TEMPERATURE:
+            Serial.printf("[ID %d] Temperature:  %.1f\n", message->id, message->data.sensor_data / 10.0f);
+            break;
+        case METRIC_TYPE_VELOCITY:
+            Serial.printf("[ID %d] Velocity:     %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_DISPLACEMENT:
+            Serial.printf("[ID %d] Displacement: %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_ACCELERATION:
+            Serial.printf("[ID %d] Acceleration: %.2f\n", message->id, message->data.sensor_data / 100.0f);
+            break;
+        case METRIC_TYPE_FREQUENCY:
+            Serial.printf("[ID %d] Freq:         %lu Hz\n", message->id, message->data.frequency_data);
+            break;
+        default:
+            Serial.printf("[ID %d] Metric=%d Data=%d\n", message->id, message->metric_type, message->data.sensor_data);
     }
 }
 
@@ -241,6 +255,37 @@ esp_err_t CIREnSlave::sendTemperature(uint16_t temp) {
 esp_err_t CIREnSlave::sendVibration(uint16_t vib) {
     LOGI("CIREN_SLAVE", "Sending vibration: %d", vib);
     return sendMessage(METRIC_TYPE_VIBRATION, vib);
+}
+
+esp_err_t CIREnSlave::sendVelocity(uint16_t vel) {
+    LOGI("CIREN_SLAVE", "Sending velocity: %d", vel);
+    return sendMessage(METRIC_TYPE_VELOCITY, vel);
+}
+
+esp_err_t CIREnSlave::sendDisplacement(uint16_t disp) {
+    LOGI("CIREN_SLAVE", "Sending displacement: %d", disp);
+    return sendMessage(METRIC_TYPE_DISPLACEMENT, disp);
+}
+
+esp_err_t CIREnSlave::sendAcceleration(uint16_t accel) {
+    LOGI("CIREN_SLAVE", "Sending acceleration: %d", accel);
+    return sendMessage(METRIC_TYPE_ACCELERATION, accel);
+}
+
+esp_err_t CIREnSlave::sendFrequency(uint32_t freq) {
+    if (!initialized || !masterPaired) {
+        LOGE("CIREN_SLAVE", "Not initialized or master not paired");
+        return ESP_FAIL;
+    }
+    CIREnMessage message;
+    message.id = deviceId;
+    message.metric_type = METRIC_TYPE_FREQUENCY;
+    message.data.frequency_data = freq;
+    esp_err_t result = esp_now_send(masterMac, (uint8_t*)&message, sizeof(CIREnMessage));
+    if (result != ESP_OK) {
+        LOGE("CIREN_SLAVE", "Send frequency failed");
+    }
+    return result;
 }
 
 esp_err_t CIREnSlave::sendSlaveStatus() {
