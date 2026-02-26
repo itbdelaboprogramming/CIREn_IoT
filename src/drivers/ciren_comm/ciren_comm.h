@@ -15,6 +15,7 @@ public:
     int registerSlave(uint8_t* macAddress);
     esp_err_t slaveTurnOn(uint8_t* macAddress);
     esp_err_t slaveTurnOff(uint8_t* macAddress);
+    void setMessageCallback(void (*cb)(const CIREnMessage*));
 
     static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
     static void onDataReceived(const uint8_t *mac_addr, const uint8_t *data, int len);
@@ -26,6 +27,8 @@ private:
 
     static CIREnMaster* instance;
     static bool cirenInstanceActive;
+
+    void (*messageCallback)(const CIREnMessage*);
 
     esp_err_t sendCommand(uint8_t* macAddress, uint8_t command);
     int findSlaveIndex(uint8_t* macAddress);
@@ -40,6 +43,25 @@ public:
     int findMaster(uint8_t* macAddress);
     esp_err_t sendTemperature(uint16_t temp);
     esp_err_t sendVibration(uint16_t vib);
+    esp_err_t sendVelocity(uint16_t vel);
+    esp_err_t sendDisplacement(uint16_t disp);
+    esp_err_t sendAcceleration(uint16_t accel);
+    esp_err_t sendFrequency(uint32_t freq);
+
+    // Tri-axis send methods
+    esp_err_t sendVelocityX(uint16_t vel);
+    esp_err_t sendVelocityY(uint16_t vel);
+    esp_err_t sendVelocityZ(uint16_t vel);
+    esp_err_t sendDisplacementX(uint16_t disp);
+    esp_err_t sendDisplacementY(uint16_t disp);
+    esp_err_t sendDisplacementZ(uint16_t disp);
+    esp_err_t sendAccelerationX(uint16_t accel);
+    esp_err_t sendAccelerationY(uint16_t accel);
+    esp_err_t sendAccelerationZ(uint16_t accel);
+    esp_err_t sendFrequencyX(uint32_t freq);
+    esp_err_t sendFrequencyY(uint32_t freq);
+    esp_err_t sendFrequencyZ(uint32_t freq);
+
     esp_err_t sendSlaveStatus();
 
     static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
