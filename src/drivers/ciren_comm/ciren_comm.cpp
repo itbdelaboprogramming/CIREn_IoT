@@ -14,6 +14,11 @@ CIREnMaster::CIREnMaster() {
     instance = this;
     initialized = false;
     slaveCount = 0;
+    messageCallback = nullptr;
+}
+
+void CIREnMaster::setMessageCallback(void (*cb)(const CIREnMessage*)) {
+    messageCallback = cb;
 }
 
 CIREnMaster::~CIREnMaster() {
@@ -123,6 +128,10 @@ int CIREnMaster::findSlaveIndex(uint8_t* macAddress) {
 
 void CIREnMaster::processMessage(const CIREnMessage* message) {
     if (message->metric_type == METRIC_TYPE_SYSTEM) return;
+    if (messageCallback \!= nullptr) {
+        messageCallback(message);
+        return;
+    }
     switch (message->metric_type) {
         case METRIC_TYPE_TEMPERATURE:
             Serial.printf("[ID %d] Temperature:  %.1f\n", message->id, message->data.sensor_data / 10.0f);

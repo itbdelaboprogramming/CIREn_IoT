@@ -15,6 +15,7 @@ public:
     int registerSlave(uint8_t* macAddress);
     esp_err_t slaveTurnOn(uint8_t* macAddress);
     esp_err_t slaveTurnOff(uint8_t* macAddress);
+    void setMessageCallback(void (*cb)(const CIREnMessage*));
 
     static void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status);
     static void onDataReceived(const uint8_t *mac_addr, const uint8_t *data, int len);
@@ -26,6 +27,8 @@ private:
 
     static CIREnMaster* instance;
     static bool cirenInstanceActive;
+
+    void (*messageCallback)(const CIREnMessage*);
 
     esp_err_t sendCommand(uint8_t* macAddress, uint8_t command);
     int findSlaveIndex(uint8_t* macAddress);
