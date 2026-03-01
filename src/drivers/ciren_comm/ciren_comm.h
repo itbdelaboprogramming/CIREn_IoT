@@ -41,6 +41,7 @@ public:
     ~CIREnSlave();
 
     int findMaster(uint8_t* macAddress);
+    void setDeviceId(uint8_t id);
     esp_err_t sendTemperature(uint16_t temp);
     esp_err_t sendVibration(uint16_t vib);
     esp_err_t sendVelocity(uint16_t vel);

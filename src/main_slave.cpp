@@ -31,17 +31,20 @@ void loop() {
 #include <ModbusMaster.h>
 
 
-#define DE_RE_PIN 26
+#define DE_RE_PIN 5
 ModbusMaster node;
 
 // Fill with master mac address
 // D8:13:2A:F0:56:40
-uint8_t masterMac[] = {0xD8, 0x13, 0x2A, 0xF0, 0x56, 0x40};
-CIREnSlave slave(5);
+// FC:B4:67:74:94:74
+uint8_t masterMac[] = {0xFC, 0xB4, 0x67, 0x74, 0x94, 0x74};
+CIREnSlave slave(0x01);
 
 unsigned long lastReadTime = 0;
 const unsigned long READ_INTERVAL = 1000;
-uint16_t sensorVersion = 0x0A;  // default to single-axis
+
+bool hasSingleAxis = false;  // Modbus ID 0x01
+bool hasTriAxis    = false;  // Modbus ID 0x02
 
 void preTransmit() {
     digitalWrite(DE_RE_PIN, HIGH);   // enable transmit
@@ -58,28 +61,39 @@ void setup() {
     pinMode(DE_RE_PIN, OUTPUT);
     digitalWrite(DE_RE_PIN, LOW);           // start in receive mode
     Serial2.begin(4800, SERIAL_8N1, 16, 17);
-    node.begin(1, Serial2);             // slave ID 0x01, stream = Serial2
     node.preTransmission(preTransmit);
     node.postTransmission(postTransmit);
 
     Serial.println("Sensor initialized");
 
-    // Detect sensor version — blocking until valid (0x0A or 0x0B)
-    Serial.println("Detecting sensor version...");
-    while (true) {
-        if (node.readHoldingRegisters(0x07D5, 1) == ModbusMaster::ku8MBSuccess) {
-            uint16_t ver = node.getResponseBuffer(0);
-            if (ver == 0x0A || ver == 0x0B) {
-                sensorVersion = ver;
-                Serial.printf("Sensor version: 0x%02X\n", sensorVersion);
-                break;
-            } else {
-                Serial.printf("Invalid version byte: 0x%02X, retrying...\n", ver);
-            }
+    // Probe ID 0x01 (single-axis sensor), up to 3 attempts
+    Serial.println("Probing ID 0x01 (single-axis)...");
+    for (int attempt = 0; attempt < 3 && !hasSingleAxis; attempt++) {
+        node.begin(0x01, Serial2);
+        if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
+            hasSingleAxis = true;
+            Serial.println("Single-axis sensor detected at ID 0x01");
         } else {
-            Serial.println("Version read failed, retrying...");
+            Serial.printf("  Attempt %d failed\n", attempt + 1);
+            if (attempt < 2) delay(500);
         }
-        delay(500);
+    }
+
+    // Probe ID 0x02 (tri-axis sensor), up to 3 attempts
+    Serial.println("Probing ID 0x02 (tri-axis)...");
+    for (int attempt = 0; attempt < 3 && !hasTriAxis; attempt++) {
+        node.begin(0x02, Serial2);
+        if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
+            hasTriAxis = true;
+            Serial.println("Tri-axis sensor detected at ID 0x02");
+        } else {
+            Serial.printf("  Attempt %d failed\n", attempt + 1);
+            if (attempt < 2) delay(500);
+        }
+    }
+
+    if (!hasSingleAxis && !hasTriAxis) {
+        Serial.println("WARNING: No sensors detected. Will retry in main loop.");
     }
 
     if (slave.findMaster(masterMac) == ESP_OK) {
@@ -96,8 +110,52 @@ void loop() {
     if (currentTime - lastReadTime >= READ_INTERVAL) {
         lastReadTime = currentTime;
 
-        if (sensorVersion == 0x0B) {
-            // --- Tri-axis sensor (0x0B) ---
+        // --- Single-axis sensor (Modbus ID 0x01) ---
+        if (hasSingleAxis) {
+            node.begin(0x01, Serial2);
+            slave.setDeviceId(0x01);
+
+            // Temperature — reg 0x0000
+            if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
+                float temp = (float)node.getResponseBuffer(0);
+                Serial.printf("Temperature: %.1f\n", temp);
+                slave.sendTemperature((uint16_t)(temp * 10));
+            }
+
+            // Velocity — reg 0x0001
+            if (node.readHoldingRegisters(0x0001, 1) == ModbusMaster::ku8MBSuccess) {
+                float vel = (float)node.getResponseBuffer(0);
+                Serial.printf("Velocity: %.2f\n", vel);
+                slave.sendVelocity((uint16_t)(vel * 100));
+            }
+
+            // Displacement — reg 0x0002
+            if (node.readHoldingRegisters(0x0002, 1) == ModbusMaster::ku8MBSuccess) {
+                float disp = (float)node.getResponseBuffer(0);
+                Serial.printf("Displacement: %.2f\n", disp);
+                slave.sendDisplacement((uint16_t)(disp * 100));
+            }
+
+            // Acceleration — reg 0x0003
+            if (node.readHoldingRegisters(0x0003, 1) == ModbusMaster::ku8MBSuccess) {
+                float accel = (float)node.getResponseBuffer(0);
+                Serial.printf("Acceleration: %.2f\n", accel);
+                slave.sendAcceleration((uint16_t)(accel * 100));
+            }
+
+            // Vibration Frequency — reg 0x0022, 2 registers → 32-bit
+            if (node.readHoldingRegisters(0x0022, 2) == ModbusMaster::ku8MBSuccess) {
+                uint32_t freq = ((uint32_t)node.getResponseBuffer(0) << 16)
+                              |  (uint32_t)node.getResponseBuffer(1);
+                Serial.printf("Frequency: %lu\n", freq);
+                slave.sendFrequency(freq);
+            }
+        }
+
+        // --- Tri-axis sensor (Modbus ID 0x02) ---
+        if (hasTriAxis) {
+            node.begin(0x02, Serial2);
+            slave.setDeviceId(0x02);
 
             // Temperature — reg 0x0000
             if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
@@ -175,45 +233,6 @@ void loop() {
                               |  (uint32_t)node.getResponseBuffer(1);
                 Serial.printf("Frequency Z: %lu\n", freq);
                 slave.sendFrequencyZ(freq);
-            }
-
-        } else {
-            // --- Single-axis sensor (0x0A) ---
-
-            // Temperature — reg 0x0000
-            if (node.readHoldingRegisters(0x0000, 1) == ModbusMaster::ku8MBSuccess) {
-                float temp = (float)node.getResponseBuffer(0);
-                Serial.printf("Temperature: %.1f\n", temp);
-                slave.sendTemperature((uint16_t)(temp * 10));
-            }
-
-            // Velocity — reg 0x0001
-            if (node.readHoldingRegisters(0x0001, 1) == ModbusMaster::ku8MBSuccess) {
-                float vel = (float)node.getResponseBuffer(0);
-                Serial.printf("Velocity: %.2f\n", vel);
-                slave.sendVelocity((uint16_t)(vel * 100));
-            }
-
-            // Displacement — reg 0x0002
-            if (node.readHoldingRegisters(0x0002, 1) == ModbusMaster::ku8MBSuccess) {
-                float disp = (float)node.getResponseBuffer(0);
-                Serial.printf("Displacement: %.2f\n", disp);
-                slave.sendDisplacement((uint16_t)(disp * 100));
-            }
-
-            // Acceleration — reg 0x0003
-            if (node.readHoldingRegisters(0x0003, 1) == ModbusMaster::ku8MBSuccess) {
-                float accel = (float)node.getResponseBuffer(0);
-                Serial.printf("Acceleration: %.2f\n", accel);
-                slave.sendAcceleration((uint16_t)(accel * 100));
-            }
-
-            // Vibration Frequency — reg 0x0022, 2 registers → 32-bit
-            if (node.readHoldingRegisters(0x0022, 2) == ModbusMaster::ku8MBSuccess) {
-                uint32_t freq = ((uint32_t)node.getResponseBuffer(0) << 16)
-                              |  (uint32_t)node.getResponseBuffer(1);
-                Serial.printf("Frequency: %lu\n", freq);
-                slave.sendFrequency(freq);
             }
         }
     }

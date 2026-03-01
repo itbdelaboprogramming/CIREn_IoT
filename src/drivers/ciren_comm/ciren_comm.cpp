@@ -235,6 +235,10 @@ CIREnSlave::~CIREnSlave() {
     instance = nullptr;
 }
 
+void CIREnSlave::setDeviceId(uint8_t id) {
+    deviceId = id;
+}
+
 int CIREnSlave::findMaster(uint8_t* macAddress) {
     if (initialized) {
         LOGW("CIREN_SLAVE", "Already initialized");

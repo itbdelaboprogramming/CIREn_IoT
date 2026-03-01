@@ -141,7 +141,9 @@ void loop() {
         for (int s = 0; s < slaveStoreCount; s++) {
             SlaveData& sd = slaveStore[s];
             if (!sd.active) continue;
-            Serial.printf("[ID %d]", sd.id);
+            if      (sd.id == 0x01) Serial.printf("[Single-Axis ID:%d]", sd.id);
+            else if (sd.id == 0x02) Serial.printf("[Tri-Axis   ID:%d]", sd.id);
+            else                    Serial.printf("[ID %d]", sd.id);
             for (int t = 1; t < TOTAL_METRICS; t++) {
                 if (metricLabel[t] == nullptr) continue;
                 bool isFreq = (t == METRIC_TYPE_FREQUENCY  ||
